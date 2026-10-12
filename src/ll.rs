@@ -233,13 +233,14 @@ fn in_ll_group(c: &Cube) -> bool {
 }
 
 struct GenTables {
-    t: Vec<PieceTable>,
+    blocks: Vec<crate::solver::Table223>,
+    eo: PieceTable<0, 0, true>,
 }
 
 impl GenTables {
     #[inline(always)]
     fn h(&self, c: &Cube) -> u8 {
-        self.t.iter().map(|t| t.get(c)).max().unwrap_or(0)
+        self.blocks.iter().map(|t| t.get(c)).fold(self.eo.get(c), u8::max)
     }
 }
 
@@ -284,14 +285,15 @@ fn core_dfs(
 /// been seen.
 pub fn generate(threads: usize, log: &mut dyn FnMut(String)) -> LastLayer {
     use crate::solver::{ALL_MOVES, BLOCK_223_D, BLOCK_223_L};
-    const RIGHT_223_D: (&[usize], &[usize]) = (&[DFR, DRB], &[DR, DF, DB]);
-    const RIGHT_223_R: (&[usize], &[usize]) = (&[DFR, DRB], &[DR, FR, BR]);
+    use crate::solver::PieceSet;
+    const RIGHT_223_D: PieceSet<2, 3> = ([DFR, DRB], [DR, DF, DB]);
+    const RIGHT_223_R: PieceSet<2, 3> = ([DFR, DRB], [DR, FR, BR]);
     let g = GenTables {
-        t: [BLOCK_223_D, BLOCK_223_L, RIGHT_223_D, RIGHT_223_R]
+        blocks: [BLOCK_223_D, BLOCK_223_L, RIGHT_223_D, RIGHT_223_R]
             .iter()
-            .map(|(c, e)| PieceTable::build(c, e, false, &ALL_MOVES))
-            .chain(std::iter::once(PieceTable::build(&[], &[], true, &ALL_MOVES)))
+            .map(|(c, e)| PieceTable::build(*c, *e, &ALL_MOVES))
             .collect(),
+        eo: PieceTable::build([], [], &ALL_MOVES),
     };
     let u_turns: [Vec<u8>; LL_PIECES] =
         [vec![], vec![mv(FACE_U, 0)], vec![mv(FACE_U, 1)], vec![mv(FACE_U, 2)]];

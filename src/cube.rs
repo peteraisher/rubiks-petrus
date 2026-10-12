@@ -549,28 +549,107 @@ impl Rng {
 
 // ---------------------------------------------------------------- sequences
 
+const QUARTERS: u8 = 4;
+
+/// Where appending `m` to `q` merges into an earlier turn of the same face
+/// (possibly hidden behind an opposite-face turn, as in `U D U'`), and the
+/// merged move, or None if it cancels completely.
+#[inline(always)]
+fn merge_target(q: &[u8], m: u8) -> Option<(usize, Option<u8>)> {
+    let f = face(m);
+    let n = q.len();
+    let i = if n >= 1 && face(q[n - 1]) == f {
+        n - 1
+    } else if n >= 2 && face(q[n - 1]) == opposite(f) && face(q[n - 2]) == f {
+        n - 2
+    } else {
+        return None;
+    };
+    let turns = (power(q[i]) + 1 + power(m) + 1) % QUARTERS;
+    Some((i, (turns != 0).then(|| mv(f, turns - 1))))
+}
+
 /// Append `m`, merging with a previous turn of the same face, including one
 /// hidden behind a turn of the opposite face (e.g. `U D U'` -> `D`).
 pub fn seq_push(q: &mut Vec<u8>, m: u8) {
-    let f = face(m);
-    let n = q.len();
-    let target = if n >= 1 && face(q[n - 1]) == f {
-        Some(n - 1)
-    } else if n >= 2 && face(q[n - 1]) == opposite(f) && face(q[n - 2]) == f {
-        Some(n - 2)
-    } else {
-        None
-    };
-    const QUARTERS: u8 = 4;
-    match target {
+    match merge_target(q, m) {
         None => q.push(m),
-        Some(i) => {
-            let turns = (power(q[i]) + 1 + power(m) + 1) % QUARTERS;
-            if turns == 0 {
-                q.remove(i);
-            } else {
-                q[i] = mv(f, turns - 1);
+        Some((i, Some(merged))) => q[i] = merged,
+        Some((i, None)) => {
+            q.remove(i);
+        }
+    }
+}
+
+/// Fixed-capacity move sequence: no heap traffic in the solver's hot path.
+#[derive(Clone, Copy)]
+pub struct Moves<const N: usize> {
+    len: u8,
+    m: [u8; N],
+}
+
+impl<const N: usize> Default for Moves<N> {
+    fn default() -> Self {
+        Moves { len: 0, m: [0; N] }
+    }
+}
+
+impl<const N: usize> Moves<N> {
+    pub fn from_slice(s: &[u8]) -> Self {
+        let mut r = Self::default();
+        r.m[..s.len()].copy_from_slice(s);
+        r.len = s.len() as u8;
+        r
+    }
+
+    #[inline(always)]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.m[..self.len as usize]
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline(always)]
+    pub fn push(&mut self, m: u8) {
+        self.m[self.len as usize] = m;
+        self.len += 1;
+    }
+
+    #[inline(always)]
+    pub fn pop(&mut self) {
+        self.len -= 1;
+    }
+
+    pub fn extend(&mut self, s: &[u8]) {
+        for &m in s {
+            self.push(m);
+        }
+    }
+
+    /// Append with cancellation, as [`seq_push`].
+    pub fn push_merged(&mut self, m: u8) {
+        match merge_target(self.as_slice(), m) {
+            None => self.push(m),
+            Some((i, Some(merged))) => self.m[i] = merged,
+            Some((i, None)) => {
+                let n = self.len as usize;
+                self.m.copy_within(i + 1..n, i);
+                self.len -= 1;
             }
+        }
+    }
+
+    pub fn extend_merged(&mut self, s: &[u8]) {
+        for &m in s {
+            self.push_merged(m);
         }
     }
 }

@@ -7,8 +7,8 @@
 //! 2. expand to the 2x2x3 block on D-L (+ corner DLF, edges DF FL)
 //! 3. orient all edges for the F/B axis using <R,U,F,B>, keeping the block
 //! 4. finish the first two layers using <R,U> only
-//! 5. to 7. last layer by optimal lookup: Lars' steps (corner permutation, corner
-//!    twist, edge permutation), COLL + EPLL, or one-look ZBLL
+//! 5. to 7. last layer by optimal lookup: Lars' steps (corner permutation,
+//!    corner twist, edge permutation), COLL + EPLL, or one-look ZBLL
 //!
 //! Each step is solved optimally (fewest moves for that step) by IDA* or by
 //! descending an exact distance table. A beam over orientations and over
@@ -19,15 +19,28 @@ use crate::facelet::{NSYM, SYM_MOVE};
 use crate::ll::{LastLayer, LlMode};
 use crate::tables::PieceTable;
 
-pub const BLOCK_222: (&[usize], &[usize]) = (&[DBL], &[DL, DB, BL]);
-pub const BLOCK_222_FRONT: (&[usize], &[usize]) = (&[DLF], &[DL, DF, FL]);
+/// Piece sets as (corners, edges).
+pub type PieceSet<const NC: usize, const NE: usize> = ([usize; NC], [usize; NE]);
+pub const BLOCK_222: PieceSet<1, 3> = ([DBL], [DL, DB, BL]);
+pub const BLOCK_222_FRONT: PieceSet<1, 3> = ([DLF], [DL, DF, FL]);
 /// The 2x2x3 split into two overlapping halves that fit in a table each.
-pub const BLOCK_223_D: (&[usize], &[usize]) = (&[DLF, DBL], &[DF, DL, DB]);
-pub const BLOCK_223_L: (&[usize], &[usize]) = (&[DLF, DBL], &[DL, FL, BL]);
-pub const F2L_REST: (&[usize], &[usize]) = (&[DFR, DRB], &[DR, FR, BR]);
+pub const BLOCK_223_D: PieceSet<2, 3> = ([DLF, DBL], [DF, DL, DB]);
+pub const BLOCK_223_L: PieceSet<2, 3> = ([DLF, DBL], [DL, FL, BL]);
+pub const F2L_REST: PieceSet<2, 3> = ([DFR, DRB], [DR, FR, BR]);
+
+/// Table shapes: (corners, edges, all-edge orientation).
+pub type Table222 = PieceTable<1, 3, false>;
+pub type Table223 = PieceTable<2, 3, false>;
+pub type TableEo = PieceTable<2, 0, true>;
 
 /// Longest single-step solution searched for (far above any real step).
 pub const MAX_STEP_DEPTH: usize = 24;
+/// Capacity of a whole solution (seven steps, generously bounded).
+pub const MAX_SOLUTION: usize = 128;
+pub const MAX_STEPS: usize = 8;
+
+pub type StepSeq = Moves<MAX_STEP_DEPTH>;
+pub type FullSeq = Moves<MAX_SOLUTION>;
 
 pub const ALL_MOVES: [u8; NMOVES] = {
     let mut a = [0u8; NMOVES];
@@ -52,7 +65,7 @@ const fn face_moves<const N: usize, const M: usize>(faces: [u8; N]) -> [u8; M] {
 pub const RUFB_MOVES: [u8; 4 * POWERS] = face_moves([FACE_U, FACE_R, FACE_F, FACE_B]);
 pub const RU_MOVES: [u8; 2 * POWERS] = face_moves([FACE_U, FACE_R]);
 
-/// Byte masks selecting the lanes of a piece set, for whole-vector compares.
+/// Byte mask selecting the given lanes, for whole-vector compares.
 const fn lane_mask(lanes: &[usize]) -> u128 {
     let mut m = 0u128;
     let mut i = 0;
@@ -71,15 +84,12 @@ struct Goal {
 }
 
 impl Goal {
-    const fn of(sets: &[(&[usize], &[usize])], eo: bool) -> Goal {
-        let mut g = Goal { e: 0, c: 0, eo };
-        let mut i = 0;
-        while i < sets.len() {
-            g.c |= lane_mask(sets[i].0);
-            g.e |= lane_mask(sets[i].1);
-            i += 1;
-        }
-        g
+    const fn new<const NC: usize, const NE: usize>(p: &PieceSet<NC, NE>, eo: bool) -> Goal {
+        Goal { c: lane_mask(&p.0), e: lane_mask(&p.1), eo }
+    }
+
+    const fn and<const NC: usize, const NE: usize>(self, p: &PieceSet<NC, NE>) -> Goal {
+        Goal { c: self.c | lane_mask(&p.0), e: self.e | lane_mask(&p.1), eo: self.eo }
     }
 
     #[inline(always)]
@@ -92,33 +102,33 @@ impl Goal {
     }
 }
 
-const GOAL_222: Goal = Goal::of(&[BLOCK_222], false);
-const GOAL_223: Goal = Goal::of(&[BLOCK_223_D, BLOCK_223_L], false);
-const GOAL_EO: Goal = Goal::of(&[BLOCK_223_D, BLOCK_223_L], true);
-const GOAL_F2L: Goal = Goal::of(&[BLOCK_223_D, BLOCK_223_L, F2L_REST], true);
+const GOAL_222: Goal = Goal::new(&BLOCK_222, false);
+const GOAL_223: Goal = Goal::new(&BLOCK_223_D, false).and(&BLOCK_223_L);
+const GOAL_EO: Goal = Goal::new(&BLOCK_223_D, true).and(&BLOCK_223_L);
+const GOAL_F2L: Goal = GOAL_EO.and(&F2L_REST);
 
 /// All pruning data, built once and shared read-only between threads.
 pub struct Tables {
-    pub t222: PieceTable,
-    pub t222_front: PieceTable,
-    pub t223_d: PieceTable,
-    pub t223_l: PieceTable,
+    pub t222: Table222,
+    pub t222_front: Table222,
+    pub t223_d: Table223,
+    pub t223_l: Table223,
     /// Edge orientation plus the two block corners, under <R,U,F,B>.
-    pub teo: PieceTable,
+    pub teo: TableEo,
     /// Remaining F2L pieces under <R,U>: exact.
-    pub tf2l: PieceTable,
+    pub tf2l: Table223,
     pub ll: LastLayer,
 }
 
 impl Tables {
     pub fn new() -> Tables {
         std::thread::scope(|s| {
-            let a = s.spawn(|| PieceTable::build(BLOCK_222.0, BLOCK_222.1, false, &ALL_MOVES));
-            let b = s.spawn(|| PieceTable::build(BLOCK_222_FRONT.0, BLOCK_222_FRONT.1, false, &ALL_MOVES));
-            let c = s.spawn(|| PieceTable::build(BLOCK_223_D.0, BLOCK_223_D.1, false, &ALL_MOVES));
-            let d = s.spawn(|| PieceTable::build(BLOCK_223_L.0, BLOCK_223_L.1, false, &ALL_MOVES));
-            let e = s.spawn(|| PieceTable::build(BLOCK_223_D.0, &[], true, &RUFB_MOVES));
-            let f = s.spawn(|| PieceTable::build(F2L_REST.0, F2L_REST.1, false, &RU_MOVES));
+            let a = s.spawn(|| PieceTable::build(BLOCK_222.0, BLOCK_222.1, &ALL_MOVES));
+            let b = s.spawn(|| PieceTable::build(BLOCK_222_FRONT.0, BLOCK_222_FRONT.1, &ALL_MOVES));
+            let c = s.spawn(|| PieceTable::build(BLOCK_223_D.0, BLOCK_223_D.1, &ALL_MOVES));
+            let d = s.spawn(|| PieceTable::build(BLOCK_223_L.0, BLOCK_223_L.1, &ALL_MOVES));
+            let e = s.spawn(|| PieceTable::build(BLOCK_223_D.0, [], &RUFB_MOVES));
+            let f = s.spawn(|| PieceTable::build(F2L_REST.0, F2L_REST.1, &RU_MOVES));
             Tables {
                 t222: a.join().unwrap(),
                 t222_front: b.join().unwrap(),
@@ -219,16 +229,16 @@ impl Step for FirstTwoLayers {
 
 struct Dfs<'a> {
     t: &'a Tables,
-    path: [u8; MAX_STEP_DEPTH],
-    found: Vec<Vec<u8>>,
+    path: StepSeq,
+    found: &'a mut Vec<StepSeq>,
     want: usize,
     nodes: u64,
 }
 
 impl Dfs<'_> {
-    /// Extend the path at `depth` by exactly `togo` more moves. Returns true
-    /// once enough solutions have been collected.
-    fn run<S: Step>(&mut self, c: &Cube, depth: usize, togo: u8, last: u8) -> bool {
+    /// Extend the path by exactly `togo` more moves. Returns true once
+    /// enough solutions have been collected.
+    fn run<S: Step>(&mut self, c: &Cube, togo: u8, last: u8) -> bool {
         for &m in S::MOVES {
             let f = face(m);
             // canonical order: no repeated face; opposite faces in one order only
@@ -241,10 +251,11 @@ impl Dfs<'_> {
             if h >= togo {
                 continue;
             }
-            self.path[depth] = m;
             if togo == 1 {
                 if S::goal(&n) {
-                    self.found.push(self.path[..=depth].to_vec());
+                    let mut sol = self.path;
+                    sol.push(m);
+                    self.found.push(sol);
                     if self.found.len() >= self.want {
                         return true;
                     }
@@ -255,7 +266,10 @@ impl Dfs<'_> {
             if h == 0 && S::goal(&n) {
                 continue;
             }
-            if self.run::<S>(&n, depth + 1, togo - 1, f) {
+            self.path.push(m);
+            let done = self.run::<S>(&n, togo - 1, f);
+            self.path.pop();
+            if done {
                 return true;
             }
         }
@@ -263,28 +277,37 @@ impl Dfs<'_> {
     }
 }
 
-/// Up to `want` solutions for step `S`, shortest first: all optimal ones,
-/// then (if `slack` > 0) ones up to `slack` moves longer.
-pub fn solve_step<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, nodes: &mut u64) -> Vec<Vec<u8>> {
+/// Appends up to `want` solutions for step `S` to `out`, shortest first: all
+/// optimal ones, then (if `slack` > 0) ones up to `slack` moves longer.
+/// Returns the number of search nodes expanded.
+pub fn solve_step_into<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, out: &mut Vec<StepSeq>) -> u64 {
+    let start = out.len();
     if S::goal(c) {
-        return vec![Vec::new()];
+        out.push(StepSeq::default());
+        return 0;
     }
-    let mut d = Dfs { t, path: [0; MAX_STEP_DEPTH], found: Vec::new(), want, nodes: 0 };
+    let mut d = Dfs { t, path: StepSeq::default(), found: out, want: start + want, nodes: 0 };
     let mut depth = S::h(t, c).max(1);
     let mut optimal = None;
     while (depth as usize) < MAX_STEP_DEPTH {
-        d.run::<S>(c, 0, depth, NO_FACE);
-        if !d.found.is_empty() && optimal.is_none() {
+        d.run::<S>(c, depth, NO_FACE);
+        if d.found.len() > start && optimal.is_none() {
             optimal = Some(depth);
         }
-        if d.found.len() >= want || optimal.is_some_and(|o| depth >= o + slack) {
+        if d.found.len() >= d.want || optimal.is_some_and(|o| depth >= o + slack) {
             break;
         }
         depth += 1;
     }
-    *nodes += d.nodes;
-    assert!(!d.found.is_empty(), "{} step unsolvable", S::NAME);
-    d.found
+    assert!(d.found.len() > start, "{} step unsolvable", S::NAME);
+    d.nodes
+}
+
+/// Convenience wrapper returning owned solutions.
+pub fn solve_step<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, nodes: &mut u64) -> Vec<Vec<u8>> {
+    let mut out = Vec::new();
+    *nodes += solve_step_into::<S>(t, c, want, slack, &mut out);
+    out.iter().map(|s| s.as_slice().to_vec()).collect()
 }
 
 // ------------------------------------------------------------------ driver
@@ -352,72 +375,117 @@ pub struct Solution {
     pub nodes: u64,
 }
 
-#[derive(Clone)]
+/// A partial solution in the canonical frame of its orientation. Plain old
+/// data so the beam can copy it around without touching the allocator.
+#[derive(Clone, Copy)]
 struct Partial {
-    sym: usize,
+    sym: u8,
+    nsteps: u8,
     state: Cube,
-    steps: Vec<StepMoves>,
-    merged: Vec<u8>,
+    /// Step solutions back to back; step i ends at `ends[i]`.
+    raw: FullSeq,
+    ends: [u8; MAX_STEPS],
+    merged: FullSeq,
 }
 
 impl Partial {
-    fn extend(&self, name: &'static str, moves: &[u8]) -> Partial {
-        let mut p = self.clone();
+    fn extend(&self, moves: &[u8]) -> Partial {
+        let mut p = *self;
         p.state = p.state.apply_seq(moves);
-        seq_append(&mut p.merged, moves);
-        p.steps.push(StepMoves { name, moves: moves.to_vec() });
+        p.raw.extend(moves);
+        p.merged.extend_merged(moves);
+        p.ends[p.nsteps as usize] = p.raw.len() as u8;
+        p.nsteps += 1;
         p
     }
 }
 
-fn expand<S: Step>(t: &Tables, opts: &Options, beam: Vec<Partial>, nodes: &mut u64) -> Vec<Partial> {
-    let mut next = Vec::new();
-    for p in &beam {
-        for sol in solve_step::<S>(t, &p.state, opts.alts, opts.slack, nodes) {
-            next.push(p.extend(S::NAME, &sol));
-        }
-    }
-    prune(next, opts.beam)
+struct Beam<'a> {
+    t: &'a Tables,
+    opts: &'a Options,
+    names: Vec<&'static str>,
+    cur: Vec<Partial>,
+    next: Vec<Partial>,
+    sols: Vec<StepSeq>,
+    nodes: u64,
 }
 
-fn prune(mut v: Vec<Partial>, width: usize) -> Vec<Partial> {
-    v.sort_by_key(|p| p.merged.len());
-    v.truncate(width.max(1));
-    v
+impl Beam<'_> {
+    fn expand<S: Step>(&mut self) {
+        self.next.clear();
+        for p in &self.cur {
+            self.sols.clear();
+            self.nodes += solve_step_into::<S>(self.t, &p.state, self.opts.alts, self.opts.slack, &mut self.sols);
+            for s in &self.sols {
+                self.next.push(p.extend(s.as_slice()));
+            }
+        }
+        std::mem::swap(&mut self.cur, &mut self.next);
+        keep_best(&mut self.cur, self.opts.beam);
+        self.names.push(S::NAME);
+    }
+}
+
+/// Keep the `width` shortest partial solutions (stable for ties).
+fn keep_best(v: &mut Vec<Partial>, width: usize) {
+    let width = width.max(1);
+    if width == 1 {
+        if let Some(best) = v.iter().enumerate().min_by_key(|(_, p)| p.merged.len()).map(|(i, _)| i) {
+            v.swap(0, best);
+        }
+    } else {
+        v.sort_by_key(|p| p.merged.len());
+    }
+    v.truncate(width);
 }
 
 pub fn solve(t: &Tables, cube: &Cube, opts: &Options) -> Solution {
     let n_orient = opts.orientations.clamp(1, NSYM);
-    let mut nodes = 0;
-    let mut beam: Vec<Partial> = (0..n_orient)
-        .map(|sym| Partial { sym, state: cube.conj(sym), steps: Vec::new(), merged: Vec::new() })
-        .collect();
+    let mut b = Beam {
+        t,
+        opts,
+        names: Vec::with_capacity(MAX_STEPS),
+        cur: (0..n_orient)
+            .map(|sym| Partial {
+                sym: sym as u8,
+                nsteps: 0,
+                state: cube.conj(sym),
+                raw: FullSeq::default(),
+                ends: [0; MAX_STEPS],
+                merged: FullSeq::default(),
+            })
+            .collect(),
+        next: Vec::new(),
+        sols: Vec::new(),
+        nodes: 0,
+    };
     if opts.joint_blocks {
-        beam = expand::<Block223>(t, opts, beam, &mut nodes);
+        b.expand::<Block223>();
     } else {
-        beam = expand::<Block222>(t, opts, beam, &mut nodes);
-        beam = expand::<Expand223>(t, opts, beam, &mut nodes);
+        b.expand::<Block222>();
+        b.expand::<Expand223>();
     }
-    beam = expand::<EdgeOrient>(t, opts, beam, &mut nodes);
-    beam = expand::<FirstTwoLayers>(t, opts, beam, &mut nodes);
-    let finished: Vec<Partial> = beam
-        .iter()
-        .map(|p| {
-            let mut p = p.clone();
-            for (name, alg) in t.ll.solve(&p.state, opts.ll) {
-                p = p.extend(name, alg);
-            }
-            debug_assert!(p.state.is_solved());
-            p
-        })
-        .collect();
-    let best = prune(finished, 1).remove(0);
-    let to_orig = |q: &[u8]| q.iter().map(|&m| SYM_MOVE[best.sym][m as usize]).collect::<Vec<u8>>();
-    Solution {
-        sym: best.sym,
-        steps: best.steps.iter().map(|s| StepMoves { name: s.name, moves: to_orig(&s.moves) }).collect(),
-        moves: to_orig(&best.merged),
-        nodes,
+    b.expand::<EdgeOrient>();
+    b.expand::<FirstTwoLayers>();
+    let mut ll_names = Vec::new();
+    for p in b.cur.iter_mut() {
+        ll_names.clear();
+        for (name, alg) in t.ll.solve(&p.state, opts.ll) {
+            *p = p.extend(alg);
+            ll_names.push(name);
+        }
+        debug_assert!(p.state.is_solved());
     }
+    keep_best(&mut b.cur, 1);
+    let best = &b.cur[0];
+    let sym = best.sym as usize;
+    let to_orig = |q: &[u8]| q.iter().map(|&m| SYM_MOVE[sym][m as usize]).collect::<Vec<u8>>();
+    let mut steps = Vec::with_capacity(best.nsteps as usize);
+    let mut start = 0;
+    for (i, name) in b.names.iter().chain(ll_names.iter()).enumerate() {
+        let end = best.ends[i] as usize;
+        steps.push(StepMoves { name, moves: to_orig(&best.raw.as_slice()[start..end]) });
+        start = end;
+    }
+    Solution { sym, steps, moves: to_orig(best.merged.as_slice()), nodes: b.nodes }
 }
-

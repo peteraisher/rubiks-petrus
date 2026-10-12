@@ -1,7 +1,7 @@
 //! Lint: no magic numbers in library/binary code.
 //!
 //! Clippy has no magic-number lint, so this test enforces the rule: outside a
-//! `const` or `static` item, an integer literal must be 0, 1 or 2. Anything
+//! `const`, `static` or `type` item, an integer literal must be 0, 1 or 2. Anything
 //! larger needs a named constant. Comments, strings and char literals are
 //! ignored. A line may opt out with a trailing `// magic-ok: <reason>`.
 
@@ -95,7 +95,8 @@ fn violations(src: &str) -> Vec<(usize, String)> {
         let t = line.trim_start();
         let t = t.strip_prefix("pub(crate) ").or_else(|| t.strip_prefix("pub ")).unwrap_or(t);
         let starts_item = (t.starts_with("const ") && !t.starts_with("const fn"))
-            || t.starts_with("static ");
+            || t.starts_with("static ")
+            || t.starts_with("type ");
         if !in_const && starts_item {
             in_const = true;
             depth = 0;
