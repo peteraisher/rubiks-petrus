@@ -1,0 +1,22 @@
+[package]
+name = "petrus"
+version = "0.1.0"
+edition = "2021"
+description = "Fast Rubik's cube solver using the Lars Petrus method"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "petrus"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = 1          # symbols for the profiler
+
+[profile.test]
+opt-level = 3
