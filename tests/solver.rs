@@ -30,6 +30,8 @@ fn embedded_tables_match_fresh_bfs_and_combinatorics() {
     let t222_front = T222_FRONT.build::<false>();
     let t223_d = T223_D.build::<false>();
     let t223_l = T223_L.build::<false>();
+    let t223_fd = T223_FD.build::<false>();
+    let t223_fb = T223_FB.build::<false>();
     let teo = TEO.build::<true>();
     let tf2l = TF2L.build::<false>();
     // 1 corner (8*3) and 3 edges (12*2 * 11*2 * 10*2)
@@ -51,6 +53,8 @@ fn embedded_tables_match_fresh_bfs_and_combinatorics() {
     assert!(t.t222_front.same_data(&t222_front));
     assert!(t.t223_d.same_data(&t223_d));
     assert!(t.t223_l.same_data(&t223_l));
+    assert!(t.t223_fd.same_data(&t223_fd));
+    assert!(t.t223_fb.same_data(&t223_fb));
     assert!(t.teo.same_data(&teo));
     assert!(t.tf2l.same_data(&tf2l));
 }

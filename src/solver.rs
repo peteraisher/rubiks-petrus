@@ -75,6 +75,8 @@ pub struct Tables {
     pub t222_front: Table222,
     pub t223_d: Table223,
     pub t223_l: Table223,
+    pub t223_fd: Table223,
+    pub t223_fb: Table223,
     /// Edge orientation plus the two block corners, under <R,U,F,B>.
     pub teo: TableEo,
     /// Remaining F2L pieces under <R,U>: exact.
@@ -96,6 +98,8 @@ impl Tables {
             t222_front: T222_FRONT.with_data(embedded!("t222_front")),
             t223_d: T223_D.with_data(embedded!("t223_d")),
             t223_l: T223_L.with_data(embedded!("t223_l")),
+            t223_fd: T223_FD.with_data(embedded!("t223_fd")),
+            t223_fb: T223_FB.with_data(embedded!("t223_fb")),
             teo: TEO.with_data(embedded!("teo")),
             tf2l: TF2L.with_data(embedded!("tf2l")),
             ll: LastLayer::load_embedded().expect("embedded last-layer table"),
@@ -143,7 +147,10 @@ impl Step for Block222 {
 
 #[inline(always)]
 fn h_223(t: &Tables, c: &Cube) -> u8 {
-    t.t223_d.get(c).max(t.t223_l.get(c)).max(t.t222.get(c)).max(t.t222_front.get(c))
+    [&t.t223_d, &t.t223_l, &t.t223_fd, &t.t223_fb]
+        .iter()
+        .map(|x| x.get(c))
+        .fold(t.t222.get(c).max(t.t222_front.get(c)), u8::max)
 }
 
 #[inline(always)]
@@ -153,6 +160,8 @@ fn exceeds_223(t: &Tables, c: &Cube, bound: u8) -> bool {
         || t.t222_front.get(c) >= bound
         || t.t223_d.get(c) >= bound
         || t.t223_l.get(c) >= bound
+        || t.t223_fd.get(c) >= bound
+        || t.t223_fb.get(c) >= bound
 }
 
 impl Step for Expand223 {
