@@ -2,6 +2,7 @@
 // frames to ffmpeg.
 //   node render.mjs                 -> out/petrus-race.mp4
 //   node render.mjs --still 3.5 9   -> out/still-3.5.png, out/still-9.png
+//   node render.mjs --thumb         -> out/thumbnail.png
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -34,14 +35,18 @@ await new Promise((r) => server.once('listening', r));
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.error('page error:', e.message));
-await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
+const args = process.argv.slice(2);
+const pageName = args[0] === '--thumb' ? 'thumb.html' : 'index.html';
+await page.goto(`http://127.0.0.1:${server.address().port}/${pageName}`);
 await page.waitForFunction(() => window.ready || window.error, null, { timeout: 60000 });
 const err = await page.evaluate(() => window.error);
 if (err) throw new Error(err);
 await mkdir(OUT, { recursive: true });
 
-const args = process.argv.slice(2);
-if (args[0] === '--still') {
+if (args[0] === '--thumb') {
+  await page.screenshot({ path: join(OUT, 'thumbnail.png') });
+  console.log('out/thumbnail.png');
+} else if (args[0] === '--still') {
   for (const s of args.slice(1)) {
     await page.evaluate((i) => window.renderFrame(i), Math.round(Number(s) * FPS));
     await page.screenshot({ path: join(OUT, `still-${s}.png`) });

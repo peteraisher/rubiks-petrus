@@ -234,6 +234,7 @@ finishes on screen:
 video/export.sh                      # pick a typical scramble, measure, write JSON
 (cd video/render && npm install && npm test && node render.mjs)
                                      # -> video/render/out/petrus-race.mp4
+(cd video/render && node render.mjs --thumb)  # -> out/thumbnail.png for the post
 ```
 
 The scramble is the candidate closest to every solver's mean length and
