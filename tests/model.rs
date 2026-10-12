@@ -1,8 +1,9 @@
+#![allow(clippy::needless_range_loop)]
 use petrus::cube::*;
 use petrus::facelet::*;
 
 fn random_seq(rng: &mut Rng, n: usize) -> Vec<u8> {
-    (0..n).map(|_| (rng.next() % 18) as u8).collect()
+    (0..n).map(|_| (rng.next_u64() % 18) as u8).collect()
 }
 
 #[test]
@@ -137,6 +138,7 @@ fn symmetries_form_a_group_and_map_moves() {
             let mapped: Vec<u8> = q.iter().map(|&m| SYM_MOVE[s][m as usize]).collect();
             let rhs = x.apply_seq(&mapped).conj(s);
             assert_eq!(lhs, rhs, "sym {s}");
+            assert_eq!(x.conj(s), x.conj_reference(s), "fast conj, sym {s}");
         }
         assert!(Cube::SOLVED.conj(s).is_solved());
     }

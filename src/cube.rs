@@ -459,7 +459,21 @@ impl Cube {
     /// `S * X * S^-1`: the same physical cube viewed after whole-cube symmetry
     /// `sym`. Solving the result with moves `q` solves `self` with
     /// `SYM_MOVE[sym][q]`.
+    #[inline]
     pub fn conj(&self, sym: usize) -> Cube {
+        let t = &facelet::CONJ;
+        let mut y = Cube::SOLVED;
+        for i in 0..N_CORNERS {
+            y.c[t.corner_piece[sym][i] as usize] = t.corner_value[sym][i][self.c[i] as usize];
+        }
+        for i in 0..N_EDGES {
+            y.e[t.edge_piece[sym][i] as usize] = t.edge_value[sym][i][self.e[i] as usize];
+        }
+        y
+    }
+
+    /// Reference implementation of [`Cube::conj`] through facelets.
+    pub fn conj_reference(&self, sym: usize) -> Cube {
         let f = facelet::cubie_to_facelets(&self.to_cubie());
         let g = facelet::conj_facelets(&f, sym);
         Cube::from_cubie(&facelet::facelets_to_cubie(&g))
@@ -514,7 +528,7 @@ impl Rng {
         }))
     }
 
-    pub fn next(&mut self) -> u64 {
+    pub fn next_u64(&mut self) -> u64 {
         let [a, b, c, d] = &mut self.0;
         let r = b.wrapping_mul(XOSHIRO_MUL1).rotate_left(XOSHIRO_ROT1).wrapping_mul(XOSHIRO_MUL2);
         let t = *b << XOSHIRO_SHIFT;
@@ -529,7 +543,7 @@ impl Rng {
 
     /// Uniform-enough value in `0..n` for small `n`.
     pub fn below(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
+        (self.next_u64() % n as u64) as usize
     }
 }
 

@@ -7,7 +7,9 @@
 //! being transcribed. Facelet order is Kociemba's: U1..U9 R1..R9 F1..F9
 //! D1..D9 L1..L9 B1..B9.
 
-use crate::cube::{Cubie, CORNER_TWISTS, EDGE_FLIPS, FACE_D, FACE_U, NMOVES, N_CORNERS, N_EDGES, N_FACES, POWERS};
+use crate::cube::{
+    Cubie, CORNER_TWISTS, EDGE_FLIPS, FACE_D, FACE_U, LANE_VALUES, NMOVES, N_CORNERS, N_EDGES, N_FACES, POWERS,
+};
 
 /// Spatial dimensions, and stickers along one side of a face.
 const DIM: usize = 3;
@@ -413,3 +415,132 @@ pub fn conj_facelets(f: &[u8; N_FACELETS], s: usize) -> [u8; N_FACELETS] {
     }
     g
 }
+
+/// Conjugation acts on each piece independently: piece `i` at lane value
+/// `v` (position, orientation) becomes piece `CONJ_*_PIECE[s][i]` at value
+/// `CONJ_*_VALUE[s][i][v]`. Derived by pushing that piece's stickers through
+/// the symmetry, exactly as [`conj_facelets`] does for a whole cube.
+pub struct ConjTables {
+    pub corner_piece: [[u8; N_CORNERS]; NSYM],
+    pub corner_value: [[[u8; LANE_VALUES]; N_CORNERS]; NSYM],
+    pub edge_piece: [[u8; N_EDGES]; NSYM],
+    pub edge_value: [[[u8; LANE_VALUES]; N_EDGES]; NSYM],
+}
+
+const fn find_corner_facelet(f: usize) -> (usize, usize) {
+    let mut p = 0;
+    while p < N_CORNERS {
+        let mut k = 0;
+        while k < CORNER_TWISTS {
+            if CORNER_FACELET[p][k] == f {
+                return (p, k);
+            }
+            k += 1;
+        }
+        p += 1;
+    }
+    panic!("not a corner facelet")
+}
+
+const fn find_edge_facelet(f: usize) -> (usize, usize) {
+    let mut p = 0;
+    while p < N_EDGES {
+        let mut k = 0;
+        while k < EDGE_FLIPS {
+            if EDGE_FACELET[p][k] == f {
+                return (p, k);
+            }
+            k += 1;
+        }
+        p += 1;
+    }
+    panic!("not an edge facelet")
+}
+
+/// (new piece, new lane value) of corner `i` at position `p`, twist `o`.
+const fn conj_corner(s: usize, i: usize, p: usize, o: usize) -> (u8, u8) {
+    let mut colour_at = [0u8; CORNER_TWISTS];
+    let mut new_pos = 0;
+    let mut n = 0;
+    while n < CORNER_TWISTS {
+        let f = SYM_PERM[s][CORNER_FACELET[p][(n + o) % CORNER_TWISTS]] as usize;
+        let (q, k) = find_corner_facelet(f);
+        new_pos = q;
+        colour_at[k] = SYM_COLOR[s][CORNER_FACELET[i][n] / PER_FACE];
+        n += 1;
+    }
+    let mut ori = 0;
+    while colour_at[ori] != FACE_U && colour_at[ori] != FACE_D {
+        ori += 1;
+    }
+    let c1 = colour_at[(ori + 1) % CORNER_TWISTS] as usize;
+    let c2 = colour_at[(ori + 2) % CORNER_TWISTS] as usize;
+    let mut j = 0;
+    while !(CORNER_FACELET[j][1] / PER_FACE == c1 && CORNER_FACELET[j][2] / PER_FACE == c2) {
+        j += 1;
+    }
+    (j as u8, (new_pos + N_CORNERS * ori) as u8)
+}
+
+const fn conj_edge(s: usize, i: usize, p: usize, o: usize) -> (u8, u8) {
+    let mut colour_at = [0usize; EDGE_FLIPS];
+    let mut new_pos = 0;
+    let mut n = 0;
+    while n < EDGE_FLIPS {
+        let f = SYM_PERM[s][EDGE_FACELET[p][(n + o) % EDGE_FLIPS]] as usize;
+        let (q, k) = find_edge_facelet(f);
+        new_pos = q;
+        colour_at[k] = SYM_COLOR[s][EDGE_FACELET[i][n] / PER_FACE] as usize;
+        n += 1;
+    }
+    let mut j = 0;
+    while j < N_EDGES {
+        let (x, y) = (EDGE_FACELET[j][0] / PER_FACE, EDGE_FACELET[j][1] / PER_FACE);
+        if colour_at[0] == x && colour_at[1] == y {
+            return (j as u8, new_pos as u8);
+        }
+        if colour_at[0] == y && colour_at[1] == x {
+            return (j as u8, (new_pos + N_EDGES) as u8);
+        }
+        j += 1;
+    }
+    panic!("no such edge")
+}
+
+pub static CONJ: ConjTables = {
+    let mut t = ConjTables {
+        corner_piece: [[0; N_CORNERS]; NSYM],
+        corner_value: [[[0; LANE_VALUES]; N_CORNERS]; NSYM],
+        edge_piece: [[0; N_EDGES]; NSYM],
+        edge_value: [[[0; LANE_VALUES]; N_EDGES]; NSYM],
+    };
+    let mut s = 0;
+    while s < NSYM {
+        let mut i = 0;
+        while i < N_CORNERS {
+            let mut v = 0;
+            while v < LANE_VALUES {
+                let (j, w) = conj_corner(s, i, v % N_CORNERS, v / N_CORNERS);
+                assert!(v == 0 || j == t.corner_piece[s][i]);
+                t.corner_piece[s][i] = j;
+                t.corner_value[s][i][v] = w;
+                v += 1;
+            }
+            i += 1;
+        }
+        let mut i = 0;
+        while i < N_EDGES {
+            let mut v = 0;
+            while v < LANE_VALUES {
+                let (j, w) = conj_edge(s, i, v % N_EDGES, v / N_EDGES);
+                assert!(v == 0 || j == t.edge_piece[s][i]);
+                t.edge_piece[s][i] = j;
+                t.edge_value[s][i][v] = w;
+                v += 1;
+            }
+            i += 1;
+        }
+        s += 1;
+    }
+    t
+};
