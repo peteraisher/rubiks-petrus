@@ -257,7 +257,7 @@ async function main() {
   });
   const rival = by[order[1]];
   document.getElementById('summary').innerHTML =
-    `<h2>Petrus: <em>${comma(rival.total / petrus.total)}× faster</em><br>than the next-fastest solver</h2>` +
+    `<h2>Petrus: <em>${comma(rival.total / petrus.total)}× faster</em><br>than the next-fastest solver tested</h2>` +
     `<table><tr><th>SOLVER</th><th>TIME</th><th>MOVES</th><th>NODES</th></tr>${rows.join('')}</table>` +
     `<div class="note"><b>petrus</b> follows Lars Petrus' method: 2x2x2 block, 2x2x3 block, edge orientation, ` +
     `first two layers with R and U only, then the whole last layer in one look. Each step is solved optimally ` +

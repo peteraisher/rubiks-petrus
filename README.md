@@ -186,14 +186,21 @@ the same 1000 random states, one thread, same machine:
 | petrus `shortest` | + wider beam | 28.3 | 766 µs |
 | [min2phase](https://crates.io/crates/min2phase) 0.2.4, target 21 | Kociemba two-phase | 20.6 | 700 µs |
 | min2phase, target 23 / 25 | two-phase, looser target | 21.3 | 520 µs |
+| [HARCS-C](https://github.com/xmdi/HARCS-C) `Petrus.harcs` | method solver (C), first three steps only | 24.1 to F2L | 367 µs |
 | [rcuber](https://crates.io/crates/rcuber) 0.7.20 CFOP | method solver | 65.9 | 2.5 ms |
 | rcuber Roux | method solver | 47.4 | 25.6 ms |
 
 Against other method-based solvers, the actual peers, petrus is roughly
-1 000x (CFOP) to 10 000x (Roux) faster and gives shorter solutions in every
-mode. [HARCS](https://www.speedsolving.com/threads/harcs-jarcs-replacement-cube-solver.63241/),
-the best-known general method solver (step-optimal, C++), was not
-benchmarked here.
+150x (HARCS) to 10 000x (rcuber Roux) faster and gives shorter solutions in
+every mode. HARCS-C is the C rewrite of
+[HARCS](https://www.speedsolving.com/threads/harcs-jarcs-replacement-cube-solver.63241/),
+the best-known general method solver. Its Petrus method file stops after F2L
+(2x2x3 in one step, EO, F2L: 24.1 moves, against 27.0 for petrus `fast`
+at the same point), so its time excludes a last layer; petrus spends ~30 ns
+there. It is timed with `compare/harcs` (2000 of its own random states, one
+thread, its search loop unchanged), which fetches a pinned commit and fixes
+one upstream bug: a 32-bit shift that corrupts move sequences longer than six
+moves.
 
 Two-phase is not bound to a human method, so it wins on length: ~21 moves
 in about half a millisecond, a floor that a looser target barely lowers.
