@@ -8,7 +8,7 @@ import { buildTimeline, clock, solverState, videoAt, FPS, INTRO, HOLD, SUMMARY_F
 
 const STICKER_COLORS = { U: 0xf4f4ef, R: 0xd4202c, F: 0x12a150, D: 0xffd500, L: 0xff6b00, B: 0x1b5fe3 };
 const CANVAS_W = 464;
-const CANVAS_H = 292;
+const CANVAS_H = 318;
 const SUPERSAMPLE = 2;
 /// Brightness of pieces a solver has not solved yet.
 const DIM = 0.22;
@@ -44,18 +44,22 @@ const NS_PER_S = 1e9;
 const smoothstep = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const lerp = (a, b, w) => a + (b - a) * w;
 const comma = (n) => Math.round(n).toLocaleString('en-US');
+// Plain numbers only: at most three significant digits, never exponents.
+const sig3 = (x) => x.toLocaleString('en-US', { maximumSignificantDigits: 3 });
 function human(ns) {
-  if (ns < 1e3) return `${ns.toFixed(0)} ns`;
-  if (ns < 1e6) return `${(ns / 1e3).toPrecision(3)} µs`;
-  if (ns < 1e9) return `${(ns / 1e6).toPrecision(3)} ms`;
-  return `${(ns / 1e9).toPrecision(3)} s`;
+  if (ns < 1e3) return `${Math.round(ns)} ns`;
+  if (ns < 1e6) return `${sig3(ns / 1e3)} µs`;
+  if (ns < 1e9) return `${sig3(ns / 1e6)} ms`;
+  return `${sig3(ns / 1e9)} s`;
 }
-function times(x) {
-  if (x >= 1e9) return `${(x / 1e9).toPrecision(2)} billion×`;
-  if (x >= 1e6) return `${(x / 1e6).toPrecision(2)} million×`;
-  if (x >= 1e3) return `${comma(x)}×`;
-  return `${x.toPrecision(2)}×`;
-}
+const times = (x) => `${comma(x)}×`;
+/// The HUD appears at the start, at each speed change and at the finish,
+/// stays for HUD_HOLD seconds and fades.
+const HUD_FIRST = 0.4;
+const HUD_HOLD = 2.2;
+const HUD_FADE_IN = 0.2;
+const HUD_FADE_OUT = 0.4;
+const HUD_POP = 0.08;
 
 function stickerGeometry() {
   const size = 0.82, r = 0.14, h = size / 2;
@@ -260,22 +264,46 @@ async function main() {
     `from compact pruning tables, with cube moves as ARM NEON table lookups.</div>` +
     `<div class="note">* min2phase's ${by.min2phase.htm} moves are far fewer than any human method, at ${comma(by.min2phase.total / petrus.total)}× the time.</div>`;
 
-  const rateLabel = document.getElementById('rateLabel');
-  const rateVal = document.getElementById('rateVal');
-  const summary = document.getElementById('summary');
+  const hud = document.getElementById('hud');
+  const el = (id) => document.getElementById(id);
+  el('hudDots').innerHTML = tl.segments.map(() => '<i></i>').join('');
+  const dots = [...el('hudDots').children];
+  const realTotal = tl.segments[tl.segments.length - 1].t1;
 
   window.frameCount = Math.ceil(tl.duration * FPS);
   window.renderFrame = (i) => {
     const v = i / FPS;
-    const { t, rate } = clock(tl, v);
+    const { t, rate, stage } = clock(tl, v);
     for (const p of panels) p.draw(v, t, order);
-    if (v < tl.raceEnd) {
-      rateLabel.textContent = 'SLOW MOTION';
-      rateVal.textContent = `1 s = ${human(rate)} · ${times(NS_PER_S / rate)} slower`;
-    } else {
-      rateLabel.textContent = 'FINISHED';
-      rateVal.textContent = `all four solvers in ${human(tl.segments[tl.segments.length - 1].t1)} of real time`;
+    dots.forEach((d, k) => d.classList.toggle('on', k <= stage && v >= INTRO));
+    // Visible around each event: title (until the start), start, every
+    // speed change, finish.
+    const events = [[HUD_FIRST, INTRO - HUD_FIRST + HUD_HOLD], ...tl.segments.slice(1).map((sg) => [sg.v0, HUD_HOLD]), [tl.raceEnd, HUD_HOLD]];
+    let show = 0, pop = 0;
+    for (const [ev, hold] of events) {
+      if (v < ev) continue;
+      const a = smoothstep((v - ev) / HUD_FADE_IN) * (1 - smoothstep((v - ev - hold) / HUD_FADE_OUT));
+      if (a > show) [show, pop] = [a, 1 - smoothstep((v - ev) / (HUD_FADE_IN * 2))];
     }
+    if (v < INTRO) {
+      el('hudIcon').textContent = '❚❚';
+      el('hudLabel').textContent = 'READY';
+      el('hudBig').textContent = times(NS_PER_S / rate);
+      el('hudSmall').textContent = 'slower than real time';
+    } else if (v < tl.raceEnd) {
+      const sped = stage > 0;
+      el('hudIcon').textContent = sped ? '▶▶' : '▶';
+      el('hudLabel').textContent = sped ? 'SPEEDING UP' : 'SLOW MOTION';
+      el('hudBig').textContent = times(NS_PER_S / rate);
+      el('hudSmall').textContent = `slower · 1 s = ${human(rate)}`;
+    } else {
+      el('hudIcon').textContent = '■';
+      el('hudLabel').textContent = 'FINISHED';
+      el('hudBig').textContent = human(realTotal);
+      el('hudSmall').textContent = 'of real time for all four';
+    }
+    hud.style.opacity = show;
+    hud.style.transform = `translate(-50%, -50%) scale(${1 - HUD_POP * pop})`;
     summary.style.opacity = smoothstep((v - tl.raceEnd - HOLD) / SUMMARY_FADE);
   };
   window.timeline = { duration: tl.duration, raceEnd: tl.raceEnd };

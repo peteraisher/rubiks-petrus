@@ -21,15 +21,22 @@
 html, body { width: 1080px; height: 1350px; overflow: hidden; background: var(--bg); color: var(--text);
   font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; }
 #frame { position: relative; width: 1080px; height: 1350px; padding: 34px 26px 0; }
-header { height: 196px; }
+header { height: 150px; }
 h1 { font-size: 50px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
 h1 em { font-style: normal; color: var(--accent); }
 .sub { margin-top: 10px; font-size: 23px; color: var(--muted); }
-.rate { margin-top: 16px; display: inline-flex; align-items: baseline; gap: 14px; padding: 9px 18px; border-radius: 999px;
-  background: #1a2330; border: 1px solid var(--line); font-size: 21px; font-weight: 600; }
-.rate .label { color: var(--accent); letter-spacing: 0.08em; font-size: 16px; }
-.rate .val { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-#grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: 1000px; }
+#hud { position: absolute; left: 50%; top: 707px; width: 340px; padding: 16px 24px 18px; border-radius: 20px; z-index: 5;
+  background: rgba(20, 26, 34, 0.62); border: 1.5px solid rgba(255, 255, 255, 0.18); backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45); text-align: center; opacity: 0; }
+#hud .top { justify-content: center; }
+#hud .top { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: var(--accent); }
+#hud .icon { width: 22px; font-size: 18px; letter-spacing: -0.12em; }
+#hud .dots { margin-left: 6px; display: flex; gap: 6px; }
+#hud .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.22); }
+#hud .dots i.on { background: var(--accent); }
+#hud .big { margin-top: 6px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; }
+#hud .small { margin-top: 2px; font-size: 18px; color: var(--muted); }
+#grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: 1046px; }
 .panel { position: relative; background: var(--panel); border: 2px solid var(--line); border-radius: 22px; overflow: hidden;
   display: flex; flex-direction: column; padding: 16px 20px 18px; }
 .panel.hero { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 40px -12px var(--accent); }
@@ -41,7 +48,7 @@ h1 em { font-style: normal; color: var(--accent); }
 .badge { position: absolute; top: 14px; right: 16px; font-size: 18px; font-weight: 700; padding: 4px 12px; border-radius: 999px;
   background: var(--done); color: #06210f; opacity: 0; }
 .panel.finished .badge { opacity: 1; }
-canvas { display: block; width: 464px; height: 292px; margin: 0 auto; }
+canvas { display: block; width: 464px; height: 318px; margin: 0 auto; }
 .step { font-size: 21px; font-weight: 600; height: 28px; white-space: nowrap; overflow: hidden; }
 .step .n { color: var(--muted); font-weight: 500; }
 .timer { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 44px; font-weight: 700; letter-spacing: -0.02em;
@@ -77,8 +84,9 @@ footer b { color: var(--text); font-weight: 600; }
   <header>
     <h1 id="title"></h1>
     <div class="sub" id="sub"></div>
-    <div class="rate"><span class="label" id="rateLabel"></span><span class="val" id="rateVal"></span></div>
-  </header>
+    </header>
+  <div id="hud"><div class="top"><span class="icon" id="hudIcon"></span><span id="hudLabel"></span><span class="dots" id="hudDots"></span></div>
+      <div class="big" id="hudBig"></div><div class="small" id="hudSmall"></div></div>
   <div id="grid"></div>
   <footer id="footer"></footer>
   <div id="summary"></div>

@@ -6,11 +6,16 @@ import { CubeModel, parseSeq } from './cube.js';
 export const FPS = 60;
 /// Seconds of title before the clocks start.
 export const INTRO = 2.5;
-/// Video seconds per move: petrus (slow motion), then the others.
+/// Least video seconds per move for petrus' searches, and for its
+/// last-layer table lookup (a quick burst: the speed never drops).
 const SEC_PER_MOVE_PETRUS = 0.17;
-const SEC_PER_MOVE_RIVAL = 0.08;
-/// Shortest stretch of video at one speed.
-const MIN_SEGMENT = 0.4;
+const SEC_PER_MOVE_LOOKUP = 0.04;
+/// After petrus, each speed lasts about this long; a finish less than
+/// MERGE_RATIO times later than the stage's first finish shares its speed.
+const STAGE_SEC = 4;
+const MERGE_RATIO = 5;
+/// Speeds are round numbers: 1, 2 or 5 times a power of ten.
+const NICE = [1, 2, 5];
 /// After the last solver finishes: pause, then the summary card.
 export const HOLD = 0.8;
 export const SUMMARY_FADE = 0.6;
@@ -69,50 +74,50 @@ export function buildTimeline(data, nodes) {
     };
   });
 
-  // Speed segments: (video start, solver start, solver end, video seconds).
+  // Speed segments: a few stages, each at a round rate, never slowing.
   const segments = [];
   let v = INTRO;
-  const push = (t0, t1, dur) => {
-    segments.push({ v0: v, v1: v + dur, t0, t1 });
-    v += dur;
+  const push = (t0, t1, rate) => {
+    segments.push({ v0: v, v1: v + (t1 - t0) / rate, t0, t1, rate });
+    v += (t1 - t0) / rate;
   };
   const petrus = solvers.find((s) => s.id === 'petrus');
-  // Petrus' searches at one constant slow-motion rate, chosen so that the
-  // busiest step still gets SEC_PER_MOVE_PETRUS per move; the last-layer
-  // table lookup is too short for that and gets its own slower rate.
-  const search = petrus.steps.slice(0, -1);
-  const rate = Math.min(...search.map((st) => (st.t1 - st.t0) / (st.count * SEC_PER_MOVE_PETRUS)));
-  const searchEnd = search[search.length - 1].t1;
-  push(0, searchEnd, searchEnd / rate);
-  const ll = petrus.steps[petrus.steps.length - 1];
-  push(ll.t0, ll.t1, ll.count * SEC_PER_MOVE_PETRUS);
-  // The rest: one segment between consecutive step ends, long enough for
-  // the moves any solver makes in it.
-  const ends = [...new Set(solvers.flatMap((s) => s.steps.map((st) => st.t1)))].filter((t) => t > petrus.total * (1 + EPS)).sort((a, b) => a - b);
+  // Petrus at one slow-motion rate, slow enough for its busiest step.
+  const last = petrus.steps.length - 1;
+  let rate = nice(
+    Math.min(...petrus.steps.map((st, i) => (st.t1 - st.t0) / (st.count * (i === last ? SEC_PER_MOVE_LOOKUP : SEC_PER_MOVE_PETRUS)))),
+  );
+  push(0, petrus.total, rate);
+  // Then one stage per group of finishes.
+  const finishes = solvers.map((s) => s.total).filter((t) => t > petrus.total * (1 + EPS)).sort((a, b) => a - b);
   let t = petrus.total;
-  for (const e of ends) {
-    const busiest = Math.max(
-      ...solvers.map((s) => s.moves.reduce((a, m) => a + Math.max(0, Math.min(e, m.t1) - Math.max(t, m.t0)) / (m.t1 - m.t0), 0)),
-    );
-    push(t, e, Math.max(MIN_SEGMENT, busiest * SEC_PER_MOVE_RIVAL));
+  for (let i = 0; i < finishes.length; ) {
+    let e = finishes[i++];
+    while (i < finishes.length && finishes[i] < e * MERGE_RATIO) e = finishes[i++];
+    rate = Math.max(rate, nice((e - t) / STAGE_SEC));
+    push(t, e, rate);
     t = e;
   }
   const raceEnd = v;
   return { solvers, segments, raceEnd, duration: raceEnd + HOLD + SUMMARY_FADE + SUMMARY };
 }
 
+/// The round number (see NICE) nearest to x on a log scale.
+function nice(x) {
+  const e = Math.floor(Math.log10(x));
+  const cands = [e - 1, e, e + 1].flatMap((k) => NICE.map((n) => n * 10 ** k));
+  return cands.reduce((a, b) => (Math.abs(Math.log(b / x)) < Math.abs(Math.log(a / x)) ? b : a));
+}
+
 /// Solver time (ns) and current rate (ns per video second) at video time v.
 export function clock(tl, v) {
   const segs = tl.segments;
-  if (v <= segs[0].v0) return { t: 0, rate: (segs[0].t1 - segs[0].t0) / (segs[0].v1 - segs[0].v0) };
-  for (const s of segs) {
-    if (v <= s.v1) {
-      const rate = (s.t1 - s.t0) / (s.v1 - s.v0);
-      return { t: s.t0 + (v - s.v0) * rate, rate };
-    }
+  if (v <= segs[0].v0) return { t: 0, rate: segs[0].rate, stage: 0, since: v - segs[0].v0 };
+  for (const [i, s] of segs.entries()) {
+    if (v <= s.v1) return { t: s.t0 + (v - s.v0) * s.rate, rate: s.rate, stage: i, since: v - s.v0 };
   }
   const last = segs[segs.length - 1];
-  return { t: last.t1, rate: 0 };
+  return { t: last.t1, rate: 0, stage: segs.length, since: v - last.v1 };
 }
 
 /// Video time at which solver time t is reached.
