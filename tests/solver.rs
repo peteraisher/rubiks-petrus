@@ -191,6 +191,9 @@ fn random_solves_all_presets() {
         (Options { joint_blocks: true, ..Options::FAST }, 50),
         (Options::NEUTRAL, 100),
         (Options::SHORT, 20),
+        (Options { ll: LlMode::Lars, ..Options::SHORT }, 10),
+        (Options { joint_blocks: true, beam: 4, ..Options::SHORT }, 10),
+        (Options::SHORTEST, 5),
     ];
     for (opts, n) in presets {
         let mut total = 0;

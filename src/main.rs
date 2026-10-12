@@ -14,13 +14,14 @@ USAGE:
   petrus gen-ll FILE                       regenerate the last-layer table
 
 OPTIONS:
-  -p, --preset NAME   classic (default) | fast | neutral | short
+  -p, --preset NAME   classic (default) | fast | neutral | short | shortest
   -o, --orient N      orientations to try: 1, 24 (rotations) or 48 (with mirrors)
   -b, --beam N        partial solutions kept after each step (1 = greedy)
   -a, --alts N        alternative solutions per step
   -s, --slack N       alternatives may be N moves above the step optimum
   -j, --joint         solve the 2x2x3 directly (steps 1+2 jointly optimal)
   -l, --ll MODE       lars (steps 5,6,7) | coll (COLL+EPLL) | zbll (one look)
+      --no-lookahead  rank beam candidates by moves so far only
   -t, --threads N     worker threads for --bench/--random (default: all cores)
       --seed N        random seed
 ";
@@ -62,6 +63,7 @@ fn parse_args() -> Result<Args, String> {
             "-a" | "--alts" => a.opts.alts = num(val(&arg)?)?,
             "-s" | "--slack" => a.opts.slack = num(val(&arg)?)? as u8,
             "-j" | "--joint" => a.opts.joint_blocks = true,
+            "--no-lookahead" => a.opts.lookahead = false,
             "-l" | "--ll" => {
                 let m = val(&arg)?;
                 a.opts.ll = LlMode::parse(&m).ok_or(format!("unknown last-layer mode '{m}'"))?;

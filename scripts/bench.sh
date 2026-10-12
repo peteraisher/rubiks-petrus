@@ -14,7 +14,7 @@ best() { # args: threads, petrus options...
         echo
     done | sort -t, -k1 -g | awk -F'time: ' '{ split($2, a, " "); print a[1], $0 }' | sort -g | head -1 | cut -d' ' -f2-
 }
-for preset in classic fast neutral short; do
+for preset in classic fast neutral short shortest; do
     printf '%-8s 1 thread : %s\n' "$preset" "$(best 1 -p "$preset")"
 done
 printf '%-8s all cores: %s\n' fast "$(best "$(sysctl -n hw.ncpu 2>/dev/null || nproc)" -p fast)"

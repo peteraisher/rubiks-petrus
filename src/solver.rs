@@ -331,19 +331,32 @@ pub struct Options {
     /// an optimal 2x2x2 followed by an optimal expansion.
     pub joint_blocks: bool,
     pub ll: LlMode,
+    /// Rank beam candidates by moves so far plus a lower bound on the next
+    /// step (exact for F2L and the last layer) instead of moves so far.
+    pub lookahead: bool,
 }
 
 impl Options {
     /// Lars Petrus' seven steps, fixed orientation, each step optimal.
-    pub const CLASSIC: Options =
-        Options { orientations: 1, beam: 1, alts: 1, slack: 0, joint_blocks: false, ll: LlMode::Lars };
+    pub const CLASSIC: Options = Options {
+        orientations: 1,
+        beam: 1,
+        alts: 1,
+        slack: 0,
+        joint_blocks: false,
+        ll: LlMode::Lars,
+        lookahead: false,
+    };
     /// Like classic but with a one-look last layer.
     pub const FAST: Options = Options { ll: LlMode::Zbll, ..Options::CLASSIC };
     /// Greedy over all 48 orientations.
     pub const NEUTRAL: Options = Options { orientations: NSYM, ..Options::FAST };
-    /// Beam search over orientations and step alternatives.
+    /// Beam search over orientations and step alternatives, ranked with
+    /// lookahead (~30 moves in a few hundred microseconds).
     pub const SHORT: Options =
-        Options { orientations: NSYM, beam: 8, alts: 4, slack: 1, joint_blocks: false, ll: LlMode::Zbll };
+        Options { orientations: NSYM, beam: 16, alts: 4, slack: 1, lookahead: true, ..Options::FAST };
+    /// A wider beam (~28 moves in about a millisecond).
+    pub const SHORTEST: Options = Options { beam: 64, alts: 8, ..Options::SHORT };
 
     pub fn preset(name: &str) -> Option<Options> {
         Some(match name {
@@ -351,6 +364,7 @@ impl Options {
             "fast" => Options::FAST,
             "neutral" => Options::NEUTRAL,
             "short" => Options::SHORT,
+            "shortest" => Options::SHORTEST,
             _ => return None,
         })
     }
@@ -391,6 +405,9 @@ struct Partial {
     raw: FullSeq,
     ends: [u8; MAX_STEPS],
     merged: FullSeq,
+    /// Ranking key: moves so far plus (optionally) a lower bound on the next
+    /// step, so the beam prefers partials that leave an easy continuation.
+    key: usize,
 }
 
 impl Partial {
@@ -401,6 +418,7 @@ impl Partial {
         p.merged.extend_merged(moves);
         p.ends[p.nsteps as usize] = p.raw.len() as u8;
         p.nsteps += 1;
+        p.key = p.merged.len();
         p
     }
 }
@@ -428,7 +446,10 @@ impl Beam<'_> {
     /// beat its worst member, the rest are skipped. With exact heuristics
     /// (2x2x2, F2L) choosing among 48 orientations costs 48 table lookups
     /// plus one search, not 48 searches.
-    fn expand<S: Step>(&mut self) {
+    ///
+    /// `next_h` bounds the step after this one; with `Options::lookahead`
+    /// it is added to each child's ranking key.
+    fn expand<S: Step>(&mut self, next_h: impl Fn(&Cube) -> usize) {
         let width = self.opts.beam.max(1);
         let mut order: Vec<(usize, usize)> = self
             .cur
@@ -446,7 +467,7 @@ impl Beam<'_> {
             // once the beam is full, a child only matters if it beats the
             // worst member, which caps both the order scan and the search
             let max_len = if self.next.len() >= width {
-                let worst = self.next[width - 1].merged.len();
+                let worst = self.next[width - 1].key;
                 if worst <= bound {
                     break;
                 }
@@ -465,7 +486,11 @@ impl Beam<'_> {
                 &mut self.sols,
             );
             for s in &self.sols {
-                self.next.push(p.extend(s.as_slice()));
+                let mut child = p.extend(s.as_slice());
+                if self.opts.lookahead {
+                    child.key += next_h(&child.state);
+                }
+                self.next.push(child);
             }
             keep_best(&mut self.next, width);
         }
@@ -475,15 +500,15 @@ impl Beam<'_> {
     }
 }
 
-/// Keep the `width` shortest partial solutions (stable for ties).
+/// Keep the `width` best-ranked partial solutions (stable for ties).
 fn keep_best(v: &mut Vec<Partial>, width: usize) {
     let width = width.max(1);
     if width == 1 {
-        if let Some(best) = v.iter().enumerate().min_by_key(|(_, p)| p.merged.len()).map(|(i, _)| i) {
+        if let Some(best) = v.iter().enumerate().min_by_key(|(_, p)| p.key).map(|(i, _)| i) {
             v.swap(0, best);
         }
     } else {
-        v.sort_by_key(|p| p.merged.len());
+        v.sort_by_key(|p| p.key);
     }
     v.truncate(width);
 }
@@ -502,20 +527,22 @@ pub fn solve(t: &Tables, cube: &Cube, opts: &Options) -> Solution {
                 raw: FullSeq::default(),
                 ends: [0; MAX_STEPS],
                 merged: FullSeq::default(),
+                key: 0,
             })
             .collect(),
         next: Vec::new(),
         sols: Vec::new(),
         nodes: 0,
     };
+    let h = |x: u8| x as usize;
     if opts.joint_blocks {
-        b.expand::<Block223>();
+        b.expand::<Block223>(|c| h(EdgeOrient::h(t, c)));
     } else {
-        b.expand::<Block222>();
-        b.expand::<Expand223>();
+        b.expand::<Block222>(|c| h(Expand223::h(t, c)));
+        b.expand::<Expand223>(|c| h(EdgeOrient::h(t, c)));
     }
-    b.expand::<EdgeOrient>();
-    b.expand::<FirstTwoLayers>();
+    b.expand::<EdgeOrient>(|c| h(FirstTwoLayers::h(t, c)));
+    b.expand::<FirstTwoLayers>(|c| t.ll.cost(c, opts.ll));
     let mut ll_names = Vec::new();
     for p in b.cur.iter_mut() {
         ll_names.clear();

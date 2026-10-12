@@ -56,6 +56,7 @@ fn main() {
         ("petrus fast (ZBLL)", Options::FAST),
         ("petrus neutral", Options::NEUTRAL),
         ("petrus short", Options::SHORT),
+        ("petrus shortest", Options::SHORTEST),
     ] {
         let t0 = Instant::now();
         let lens: Vec<usize> = cubes

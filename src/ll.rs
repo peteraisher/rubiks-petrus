@@ -191,6 +191,16 @@ impl LastLayer {
         self.algs[idx].as_deref()
     }
 
+    /// Total length of [`LastLayer::solve`]'s algorithms, without building them.
+    pub fn cost(&self, c: &Cube, mode: LlMode) -> usize {
+        let Some(idx) = ll_index(c) else { return 0 };
+        let len = |i: usize| self.algs[i].as_ref().map_or(0, Vec::len);
+        match mode {
+            LlMode::Zbll => len(idx),
+            _ => self.solve(c, mode).iter().map(|(_, a)| a.len()).sum(),
+        }
+    }
+
     /// Step algorithms finishing a cube whose F2L and EO are solved.
     pub fn solve(&self, c: &Cube, mode: LlMode) -> Vec<(&'static str, &[u8])> {
         let mut out = Vec::new();
