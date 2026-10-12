@@ -1,0 +1,20 @@
+# Speed / length comparison against other solvers. Kept out of the main
+# crate so petrus itself stays dependency-free. Run with:
+#   cargo run --release --manifest-path compare/Cargo.toml -- [N]
+[package]
+name = "compare"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+petrus = { path = ".." }
+min2phase = "=0.2.4"
+rcuber = { version = "=0.7.20", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
