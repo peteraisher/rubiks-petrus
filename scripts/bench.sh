@@ -6,6 +6,7 @@ set -e
 N=${N:-20000}
 REPEAT=${REPEAT:-5}
 BIN=${BIN:-target/release/petrus}
+command -v cargo >/dev/null || . "$HOME/.cargo/env"
 cargo build --release --quiet
 best() { # args: threads, petrus options...
     t=$1; shift

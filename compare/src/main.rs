@@ -9,7 +9,9 @@ use std::time::Instant;
 
 const DEFAULT_SAMPLES: usize = 200;
 const SEED: u64 = 31337;
-const MIN2PHASE_TARGET: u8 = 21;
+/// Target lengths for min2phase (it stops at the first solution this short;
+/// its API clamps the target to 25).
+const MIN2PHASE_TARGETS: [u8; 3] = [21, 23, 25];
 const MICROS: f64 = 1e6;
 
 /// Half-turn-metric length of an rcuber solution: slices count 2, cube
@@ -72,14 +74,14 @@ fn main() {
 
     // min2phase: first call builds its tables
     let t0 = Instant::now();
-    let _ = min2phase::solve(&facelets[0], MIN2PHASE_TARGET);
+    let _ = min2phase::solve(&facelets[0], MIN2PHASE_TARGETS[0]);
     let setup = t0.elapsed().as_secs_f64();
-    let t0 = Instant::now();
-    let lens: Vec<usize> = facelets
-        .iter()
-        .map(|f| min2phase::solve(f, MIN2PHASE_TARGET).split_whitespace().count())
-        .collect();
-    report("min2phase two-phase (<=21 moves)", &lens, t0.elapsed().as_secs_f64(), setup);
+    for target in MIN2PHASE_TARGETS {
+        let t0 = Instant::now();
+        let lens: Vec<usize> =
+            facelets.iter().map(|f| min2phase::solve(f, target).split_whitespace().count()).collect();
+        report(&format!("min2phase two-phase (<= {target})"), &lens, t0.elapsed().as_secs_f64(), setup);
+    }
 
     let cubies: Vec<CubieCube> = facelets
         .iter()
