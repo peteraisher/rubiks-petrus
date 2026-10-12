@@ -16,23 +16,8 @@
 
 use crate::cube::*;
 use crate::facelet::{NSYM, SYM_MOVE};
+pub use crate::defs::*;
 use crate::ll::{LastLayer, LlMode};
-use crate::tables::PieceTable;
-
-/// Piece sets as (corners, edges).
-pub type PieceSet<const NC: usize, const NE: usize> = ([usize; NC], [usize; NE]);
-pub const BLOCK_222: PieceSet<1, 3> = ([DBL], [DL, DB, BL]);
-pub const BLOCK_222_FRONT: PieceSet<1, 3> = ([DLF], [DL, DF, FL]);
-/// The 2x2x3 split into two overlapping halves that fit in a table each.
-pub const BLOCK_223_D: PieceSet<2, 3> = ([DLF, DBL], [DF, DL, DB]);
-pub const BLOCK_223_L: PieceSet<2, 3> = ([DLF, DBL], [DL, FL, BL]);
-pub const F2L_REST: PieceSet<2, 3> = ([DFR, DRB], [DR, FR, BR]);
-
-/// Table shapes: (corners, edges, all-edge orientation).
-pub type Table222 = PieceTable<1, 3, false>;
-pub type Table223 = PieceTable<2, 3, false>;
-pub type TableEo = PieceTable<2, 0, true>;
-
 /// Longest single-step solution searched for (far above any real step).
 pub const MAX_STEP_DEPTH: usize = 24;
 /// Capacity of a whole solution (seven steps, generously bounded).
@@ -41,29 +26,6 @@ pub const MAX_STEPS: usize = 8;
 
 pub type StepSeq = Moves<MAX_STEP_DEPTH>;
 pub type FullSeq = Moves<MAX_SOLUTION>;
-
-pub const ALL_MOVES: [u8; NMOVES] = {
-    let mut a = [0u8; NMOVES];
-    let mut i = 0;
-    while i < NMOVES {
-        a[i] = i as u8;
-        i += 1;
-    }
-    a
-};
-/// All turns of the given faces; `M` must be `N * POWERS`.
-const fn face_moves<const N: usize, const M: usize>(faces: [u8; N]) -> [u8; M] {
-    assert!(M == N * POWERS);
-    let mut a = [0u8; M];
-    let mut i = 0;
-    while i < M {
-        a[i] = mv(faces[i / POWERS], (i % POWERS) as u8);
-        i += 1;
-    }
-    a
-}
-pub const RUFB_MOVES: [u8; 4 * POWERS] = face_moves([FACE_U, FACE_R, FACE_F, FACE_B]);
-pub const RU_MOVES: [u8; 2 * POWERS] = face_moves([FACE_U, FACE_R]);
 
 /// Byte mask selecting the given lanes, for whole-vector compares.
 const fn lane_mask(lanes: &[usize]) -> u128 {
@@ -120,25 +82,24 @@ pub struct Tables {
     pub ll: LastLayer,
 }
 
+macro_rules! embedded {
+    ($name:literal) => {
+        include_bytes!(concat!(env!("OUT_DIR"), "/", $name, ".bin"))
+    };
+}
+
 impl Tables {
+    /// Tables embedded in the binary at build time: no startup cost.
     pub fn new() -> Tables {
-        std::thread::scope(|s| {
-            let a = s.spawn(|| PieceTable::build(BLOCK_222.0, BLOCK_222.1, &ALL_MOVES));
-            let b = s.spawn(|| PieceTable::build(BLOCK_222_FRONT.0, BLOCK_222_FRONT.1, &ALL_MOVES));
-            let c = s.spawn(|| PieceTable::build(BLOCK_223_D.0, BLOCK_223_D.1, &ALL_MOVES));
-            let d = s.spawn(|| PieceTable::build(BLOCK_223_L.0, BLOCK_223_L.1, &ALL_MOVES));
-            let e = s.spawn(|| PieceTable::build(BLOCK_223_D.0, [], &RUFB_MOVES));
-            let f = s.spawn(|| PieceTable::build(F2L_REST.0, F2L_REST.1, &RU_MOVES));
-            Tables {
-                t222: a.join().unwrap(),
-                t222_front: b.join().unwrap(),
-                t223_d: c.join().unwrap(),
-                t223_l: d.join().unwrap(),
-                teo: e.join().unwrap(),
-                tf2l: f.join().unwrap(),
-                ll: LastLayer::load_embedded().expect("embedded last-layer table"),
-            }
-        })
+        Tables {
+            t222: T222.with_data(embedded!("t222")),
+            t222_front: T222_FRONT.with_data(embedded!("t222_front")),
+            t223_d: T223_D.with_data(embedded!("t223_d")),
+            t223_l: T223_L.with_data(embedded!("t223_l")),
+            teo: TEO.with_data(embedded!("teo")),
+            tf2l: TF2L.with_data(embedded!("tf2l")),
+            ll: LastLayer::load_embedded().expect("embedded last-layer table"),
+        }
     }
 }
 

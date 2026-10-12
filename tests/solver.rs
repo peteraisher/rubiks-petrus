@@ -24,21 +24,35 @@ fn brute_force(c: &Cube, moves: &[u8], goal: fn(&Cube) -> bool, max: u8) -> Opti
 }
 
 #[test]
-fn table_sizes_match_combinatorics() {
+fn embedded_tables_match_fresh_bfs_and_combinatorics() {
     let t = tables();
+    let t222 = T222.build::<false>();
+    let t222_front = T222_FRONT.build::<false>();
+    let t223_d = T223_D.build::<false>();
+    let t223_l = T223_L.build::<false>();
+    let teo = TEO.build::<true>();
+    let tf2l = TF2L.build::<false>();
     // 1 corner (8*3) and 3 edges (12*2 * 11*2 * 10*2)
-    assert_eq!(t.t222.reachable, 24 * 24 * 22 * 20);
-    assert_eq!(t.t222_front.reachable, 24 * 24 * 22 * 20);
+    assert_eq!(t222.reachable, 24 * 24 * 22 * 20);
+    assert_eq!(t222_front.reachable, 24 * 24 * 22 * 20);
     // 2 corners (24*21) and 3 edges
-    assert_eq!(t.t223_d.reachable, 24 * 21 * 24 * 22 * 20);
-    assert_eq!(t.t223_l.reachable, 24 * 21 * 24 * 22 * 20);
+    assert_eq!(t223_d.reachable, 24 * 21 * 24 * 22 * 20);
+    assert_eq!(t223_l.reachable, 24 * 21 * 24 * 22 * 20);
     // <R,U,F,B> never touches the DL slot, so only 2^10 orientation masks
     // are reachable (the other 11 free bits minus DL's), times 2 corners
-    assert_eq!(t.teo.reachable, 1024 * 24 * 21);
+    assert_eq!(teo.reachable, 1024 * 24 * 21);
     // <R,U>: 2 corners among 6 slots (any twist) x 3 oriented edges among 7 slots
-    assert_eq!(t.tf2l.reachable, 6 * 3 * 5 * 3 * 7 * 6 * 5);
+    assert_eq!(tf2l.reachable, 6 * 3 * 5 * 3 * 7 * 6 * 5);
+    // and the per-lane remap packs <R,U> into 18 corner and 7 edge values
+    assert_eq!(tf2l.size, 18 * 18 * 7 * 7 * 7);
     // God's number for a 2x2x2 block is 8 (half-turn metric)
-    assert_eq!(t.t222.max_depth, 8);
+    assert_eq!(t222.max_depth, 8);
+    assert!(t.t222.same_data(&t222));
+    assert!(t.t222_front.same_data(&t222_front));
+    assert!(t.t223_d.same_data(&t223_d));
+    assert!(t.t223_l.same_data(&t223_l));
+    assert!(t.teo.same_data(&teo));
+    assert!(t.tf2l.same_data(&tf2l));
 }
 
 /// States a few random moves from a step's goal; the step optimum must

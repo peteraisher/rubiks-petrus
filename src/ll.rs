@@ -233,7 +233,7 @@ fn in_ll_group(c: &Cube) -> bool {
 }
 
 struct GenTables {
-    blocks: Vec<crate::solver::Table223>,
+    blocks: Vec<crate::defs::Table223>,
     eo: PieceTable<0, 0, true>,
 }
 
@@ -284,8 +284,8 @@ fn core_dfs(
 /// of length L is certified optimal once every core of length L - 1 has
 /// been seen.
 pub fn generate(threads: usize, log: &mut dyn FnMut(String)) -> LastLayer {
-    use crate::solver::{ALL_MOVES, BLOCK_223_D, BLOCK_223_L};
-    use crate::solver::PieceSet;
+    use crate::defs::{ALL_MOVES, BLOCK_223_D, BLOCK_223_L};
+    use crate::defs::PieceSet;
     const RIGHT_223_D: PieceSet<2, 3> = ([DFR, DRB], [DR, DF, DB]);
     const RIGHT_223_R: PieceSet<2, 3> = ([DFR, DRB], [DR, FR, BR]);
     let g = GenTables {

@@ -9,6 +9,8 @@
 //! enough to live in cache, which is what the search is bound by. The shape
 //! is a const generic so a lookup unrolls to a handful of multiply-adds.
 
+use std::borrow::Cow;
+
 use crate::cube::{Cube, CORNER_TABLE, EDGE_TABLE, EO_MASKS, LANE_VALUES, MOVE_CUBIE, MT, NMOVES, N_EDGES};
 
 /// Distance marker for states not (yet) reached by the BFS; also the largest
@@ -71,7 +73,7 @@ impl Digit {
 pub struct PieceTable<const NC: usize, const NE: usize, const EO: bool> {
     corners: [Digit; NC],
     edges: [Digit; NE],
-    data: Vec<u8>,
+    data: Cow<'static, [u8]>,
     pub size: usize,
     pub reachable: usize,
     pub max_depth: u8,
@@ -95,7 +97,7 @@ pub fn eo_move_table() -> Vec<[u16; NMOVES]> {
 }
 
 impl<const NC: usize, const NE: usize, const EO: bool> PieceTable<NC, NE, EO> {
-    pub fn build(corners: [usize; NC], edges: [usize; NE], moves: &[u8]) -> Self {
+    fn layout(corners: [usize; NC], edges: [usize; NE], moves: &[u8], data: Cow<'static, [u8]>) -> Self {
         let mut corners = corners.map(|l| Digit::new(l, CORNER_TABLE, moves));
         let mut edges = edges.map(|l| Digit::new(l, EDGE_TABLE, moves));
         // place values, least significant last; the EO mask sits below all
@@ -108,15 +110,23 @@ impl<const NC: usize, const NE: usize, const EO: bool> PieceTable<NC, NE, EO> {
             }
             place *= d.radix;
         }
-        let size = place;
-        let mut t = PieceTable {
-            corners,
-            edges,
-            data: vec![u8::MAX; size.div_ceil(2)],
-            size,
-            reachable: 0,
-            max_depth: 0,
-        };
+        let data = if data.is_empty() { Cow::Owned(vec![u8::MAX; place.div_ceil(2)]) } else { data };
+        assert_eq!(data.len(), place.div_ceil(2), "table data does not match its shape");
+        PieceTable { corners, edges, data, size: place, reachable: 0, max_depth: 0 }
+    }
+
+    /// Wrap precomputed distance data (e.g. embedded at build time).
+    pub fn with_data(corners: [usize; NC], edges: [usize; NE], moves: &[u8], data: &'static [u8]) -> Self {
+        Self::layout(corners, edges, moves, Cow::Borrowed(data))
+    }
+
+    pub fn into_data(self) -> Vec<u8> {
+        self.data.into_owned()
+    }
+
+    /// Breadth-first search from solved over `moves`.
+    pub fn build(corners: [usize; NC], edges: [usize; NE], moves: &[u8]) -> Self {
+        let mut t = Self::layout(corners, edges, moves, Cow::Borrowed(&[]));
         let eo_mv = if EO { eo_move_table() } else { Vec::new() };
         let start = t.index(&Cube::SOLVED);
         t.set(start, 0);
@@ -177,7 +187,7 @@ impl<const NC: usize, const NE: usize, const EO: bool> PieceTable<NC, NE, EO> {
 
     fn set(&mut self, i: usize, v: u8) {
         let shift = (i & 1) * NIBBLE_BITS;
-        let b = &mut self.data[i >> 1];
+        let b = &mut self.data.to_mut()[i >> 1];
         *b = *b & !(UNSEEN << shift) | v << shift;
     }
 
@@ -206,6 +216,10 @@ impl<const NC: usize, const NE: usize, const EO: bool> PieceTable<NC, NE, EO> {
     #[inline(always)]
     pub fn get(&self, c: &Cube) -> u8 {
         self.get_index(self.index(c))
+    }
+
+    pub fn same_data(&self, other: &Self) -> bool {
+        self.data == other.data
     }
 
     /// Bytes of distance data.
