@@ -97,6 +97,11 @@ fn run_many(t: &Tables, args: &Args, n: usize, print_each: bool) {
     let mut rng = Rng::new(args.seed);
     let cubes: Vec<Cube> = (0..n).map(|_| Cube::random(&mut rng)).collect();
     let threads = args.threads.min(n.max(1));
+    // untimed warm-up: fault in the embedded tables and train the caches
+    const WARMUP_SOLVES: usize = 200;
+    for c in cubes.iter().take(WARMUP_SOLVES) {
+        std::hint::black_box(solve(t, c, &args.opts));
+    }
     let t0 = Instant::now();
     let results: Vec<(Solution, f64)> = std::thread::scope(|s| {
         let chunk = n.div_ceil(threads);

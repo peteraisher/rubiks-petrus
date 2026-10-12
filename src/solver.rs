@@ -239,9 +239,17 @@ impl Dfs<'_> {
 }
 
 /// Appends up to `want` solutions for step `S` to `out`, shortest first: all
-/// optimal ones, then (if `slack` > 0) ones up to `slack` moves longer.
-/// Returns the number of search nodes expanded.
-pub fn solve_step_into<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, out: &mut Vec<StepSeq>) -> u64 {
+/// optimal ones, then (if `slack` > 0) ones up to `slack` moves longer, and
+/// none longer than `max_len` (the caller's "could still matter" bound; may
+/// leave `out` unchanged). Returns the number of search nodes expanded.
+pub fn solve_step_into<S: Step>(
+    t: &Tables,
+    c: &Cube,
+    want: usize,
+    slack: u8,
+    max_len: u8,
+    out: &mut Vec<StepSeq>,
+) -> u64 {
     let start = out.len();
     if S::goal(c) {
         out.push(StepSeq::default());
@@ -250,7 +258,8 @@ pub fn solve_step_into<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, ou
     let mut d = Dfs { t, path: StepSeq::default(), found: out, want: start + want, nodes: 0 };
     let mut depth = S::h(t, c).max(1);
     let mut optimal = None;
-    while (depth as usize) < MAX_STEP_DEPTH {
+    let max_len = max_len.min(MAX_STEP_DEPTH as u8 - 1);
+    while depth <= max_len {
         d.run::<S>(c, depth, NO_FACE);
         if d.found.len() > start && optimal.is_none() {
             optimal = Some(depth);
@@ -260,14 +269,14 @@ pub fn solve_step_into<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, ou
         }
         depth += 1;
     }
-    assert!(d.found.len() > start, "{} step unsolvable", S::NAME);
     d.nodes
 }
 
-/// Convenience wrapper returning owned solutions.
+/// Convenience wrapper returning owned solutions (always at least one).
 pub fn solve_step<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, nodes: &mut u64) -> Vec<Vec<u8>> {
     let mut out = Vec::new();
-    *nodes += solve_step_into::<S>(t, c, want, slack, &mut out);
+    *nodes += solve_step_into::<S>(t, c, want, slack, u8::MAX, &mut out);
+    assert!(!out.is_empty(), "{} step unsolvable", S::NAME);
     out.iter().map(|s| s.as_slice().to_vec()).collect()
 }
 
@@ -398,17 +407,34 @@ impl Beam<'_> {
         order.sort_unstable();
         self.next.clear();
         for &(bound, i) in &order {
-            if self.next.len() >= width && self.next[width - 1].merged.len() <= bound {
-                break;
-            }
             let p = &self.cur[i];
+            // once the beam is full, a child only matters if it beats the
+            // worst member, which caps both the order scan and the search
+            let max_len = if self.next.len() >= width {
+                let worst = self.next[width - 1].merged.len();
+                if worst <= bound {
+                    break;
+                }
+                let saving = if p.merged.is_empty() { 0 } else { BOUNDARY_SAVING };
+                (worst + saving - 1 - p.merged.len()).min(u8::MAX as usize) as u8
+            } else {
+                u8::MAX
+            };
             self.sols.clear();
-            self.nodes += solve_step_into::<S>(self.t, &p.state, self.opts.alts, self.opts.slack, &mut self.sols);
+            self.nodes += solve_step_into::<S>(
+                self.t,
+                &p.state,
+                self.opts.alts,
+                self.opts.slack,
+                max_len,
+                &mut self.sols,
+            );
             for s in &self.sols {
                 self.next.push(p.extend(s.as_slice()));
             }
             keep_best(&mut self.next, width);
         }
+        assert!(!self.next.is_empty(), "{} step unsolvable", S::NAME);
         std::mem::swap(&mut self.cur, &mut self.next);
         self.names.push(S::NAME);
     }
