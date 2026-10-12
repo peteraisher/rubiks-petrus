@@ -41,10 +41,8 @@ pub const EO_MASKS: usize = 1 << N_EDGES;
 pub const EDGE_TABLE: usize = 0;
 pub const CORNER_TABLE: usize = 1;
 
-pub const MOVE_NAMES: [&str; NMOVES] = [
-    "U", "U2", "U'", "R", "R2", "R'", "F", "F2", "F'", "D", "D2", "D'", "L", "L2", "L'", "B", "B2",
-    "B'",
-];
+pub const MOVE_NAMES: [&str; NMOVES] =
+    ["U", "U2", "U'", "R", "R2", "R'", "F", "F2", "F'", "D", "D2", "D'", "L", "L2", "L'", "B", "B2", "B'"];
 pub const FACE_CHARS: [u8; N_FACES] = *b"URFDLB";
 
 // Faces, in move order.
@@ -123,12 +121,8 @@ const fn identity<const N: usize>() -> [u8; N] {
 }
 
 impl Cubie {
-    pub const SOLVED: Cubie = Cubie {
-        cp: identity::<N_CORNERS>(),
-        co: [0; N_CORNERS],
-        ep: identity::<N_EDGES>(),
-        eo: [0; N_EDGES],
-    };
+    pub const SOLVED: Cubie =
+        Cubie { cp: identity::<N_CORNERS>(), co: [0; N_CORNERS], ep: identity::<N_EDGES>(), eo: [0; N_EDGES] };
 
     /// `self` followed by `b`.
     pub const fn mul(&self, b: &Cubie) -> Cubie {
@@ -197,10 +191,8 @@ pub const MOVE_CUBIE: [Cubie; NMOVES] = {
     let mut out = [Cubie::SOLVED; NMOVES];
     let mut f = 0;
     while f < N_FACES {
-        let quarter = facelet::facelets_to_cubie(&facelet::apply_perm(
-            &facelet::SOLVED_FACELETS,
-            &facelet::face_turn_perm(f),
-        ));
+        let quarter =
+            facelet::facelets_to_cubie(&facelet::apply_perm(&facelet::SOLVED_FACELETS, &facelet::face_turn_perm(f)));
         let mut acc = quarter;
         let mut p = 0;
         while p < POWERS {
@@ -672,10 +664,7 @@ pub fn parse_seq(s: &str) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     for tok in s.split_whitespace() {
         let b = tok.as_bytes();
-        let f = FACE_CHARS
-            .iter()
-            .position(|&c| c == b[0])
-            .ok_or_else(|| format!("bad move '{tok}'"))? as u8;
+        let f = FACE_CHARS.iter().position(|&c| c == b[0]).ok_or_else(|| format!("bad move '{tok}'"))? as u8;
         let p = match &tok[1..] {
             "" | "1" => 0,
             "2" | "2'" => 1,

@@ -73,6 +73,8 @@ fn parse_args() -> Result<Args, String> {
             "--bench" => a.bench = Some(num(val(&arg)?)?),
             "-t" | "--threads" => a.threads = num(val(&arg)?)?.max(1),
             "--seed" => a.seed = num(val(&arg)?)? as u64,
+            // moves never start with '-'
+            _ if arg.starts_with('-') => return Err(format!("unknown option '{arg}'")),
             _ => a.scramble.push(arg),
         }
     }

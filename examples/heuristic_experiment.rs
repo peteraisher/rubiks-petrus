@@ -51,11 +51,7 @@ fn dfs(x: &mut Ctx, c: &Cube, togo: u8, last: u8) -> bool {
 
 fn main() {
     let t = petrus::solver::Tables::new();
-    let extra = [
-        ([DLF, DBL], [DF, FL, DB]),
-        ([DLF, DBL], [DF, FL, BL]),
-        ([DLF, DBL], [DF, FL, DL]),
-    ];
+    let extra = [([DLF, DBL], [DF, FL, DB]), ([DLF, DBL], [DF, FL, BL]), ([DLF, DBL], [DF, FL, DL])];
     let extra: Vec<T5> = extra.iter().map(|(c, e)| PieceTable::build(*c, *e, &ALL_MOVES)).collect();
     let mut rng = Rng::new(SEED);
     let starts: Vec<Cube> = (0..SAMPLES)

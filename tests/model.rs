@@ -110,10 +110,7 @@ fn eo12_matches_scalar() {
 #[test]
 fn facelet_strings_round_trip() {
     let mut rng = Rng::new(4);
-    assert_eq!(
-        Cube::SOLVED.to_facelets(),
-        "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
-    );
+    assert_eq!(Cube::SOLVED.to_facelets(), "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB");
     for _ in 0..200 {
         let c = Cube::random(&mut rng);
         assert_eq!(Cube::from_facelets(&c.to_facelets()).unwrap(), c);

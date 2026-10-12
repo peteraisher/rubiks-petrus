@@ -26,16 +26,8 @@ const NORMAL: [V3; N_FACES] = [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, -1, 0], [-1,
 const RIGHT: [V3; N_FACES] = [[1, 0, 0], [0, 0, -1], [1, 0, 0], [1, 0, 0], [0, 0, 1], [-1, 0, 0]];
 const DOWN: [V3; N_FACES] = [[0, 0, 1], [0, -1, 0], [0, -1, 0], [0, 0, -1], [0, -1, 0], [0, -1, 0]];
 
-pub const CORNER_FACELET: [[usize; CORNER_TWISTS]; N_CORNERS] = [
-    [8, 9, 20],
-    [6, 18, 38],
-    [0, 36, 47],
-    [2, 45, 11],
-    [29, 26, 15],
-    [27, 44, 24],
-    [33, 53, 42],
-    [35, 17, 51],
-];
+pub const CORNER_FACELET: [[usize; CORNER_TWISTS]; N_CORNERS] =
+    [[8, 9, 20], [6, 18, 38], [0, 36, 47], [2, 45, 11], [29, 26, 15], [27, 44, 24], [33, 53, 42], [35, 17, 51]];
 pub const EDGE_FACELET: [[usize; EDGE_FLIPS]; N_EDGES] = [
     [5, 10],
     [7, 19],
@@ -194,9 +186,7 @@ pub const fn facelets_to_cubie(f: &[u8; N_FACELETS]) -> Cubie {
         let c2 = f[CORNER_FACELET[i][(ori + 2) % CORNER_TWISTS]];
         let mut j = 0;
         while j < N_CORNERS {
-            if c1 as usize == CORNER_FACELET[j][1] / PER_FACE
-                && c2 as usize == CORNER_FACELET[j][2] / PER_FACE
-            {
+            if c1 as usize == CORNER_FACELET[j][1] / PER_FACE && c2 as usize == CORNER_FACELET[j][2] / PER_FACE {
                 k.cp[i] = j as u8;
                 k.co[i] = ori as u8;
             }

@@ -83,10 +83,8 @@ fn main() {
         report(&format!("min2phase two-phase (<= {target})"), &lens, t0.elapsed().as_secs_f64(), setup);
     }
 
-    let cubies: Vec<CubieCube> = facelets
-        .iter()
-        .map(|f| CubieCube::try_from(&FaceCube::try_from(f.as_str()).unwrap()).unwrap())
-        .collect();
+    let cubies: Vec<CubieCube> =
+        facelets.iter().map(|f| CubieCube::try_from(&FaceCube::try_from(f.as_str()).unwrap()).unwrap()).collect();
     let run = |name: &str, f: &dyn Fn(CubieCube) -> Vec<Move>| {
         let t0 = Instant::now();
         let _ = f(cubies[0].clone());

@@ -256,14 +256,7 @@ impl GenTables {
 
 /// Enumerate "core" algorithms (first and last move not a U turn) of exactly
 /// `depth` moves that preserve F2L and EO, recording the first hit per element.
-fn core_dfs(
-    g: &GenTables,
-    c: &Cube,
-    togo: u8,
-    last: u8,
-    path: &mut Vec<u8>,
-    hits: &mut [Option<Vec<u8>>],
-) {
+fn core_dfs(g: &GenTables, c: &Cube, togo: u8, last: u8, path: &mut Vec<u8>, hits: &mut [Option<Vec<u8>>]) {
     for m in 0..NMOVES as u8 {
         let f = face(m);
         if f == last || opposite(f) == last && f < last || togo == 1 && f == FACE_U {
@@ -294,8 +287,8 @@ fn core_dfs(
 /// of length L is certified optimal once every core of length L - 1 has
 /// been seen.
 pub fn generate(threads: usize, log: &mut dyn FnMut(String)) -> LastLayer {
-    use crate::defs::{ALL_MOVES, BLOCK_223_D, BLOCK_223_L};
     use crate::defs::PieceSet;
+    use crate::defs::{ALL_MOVES, BLOCK_223_D, BLOCK_223_L};
     const RIGHT_223_D: PieceSet<2, 3> = ([DFR, DRB], [DR, DF, DB]);
     const RIGHT_223_R: PieceSet<2, 3> = ([DFR, DRB], [DR, FR, BR]);
     let g = GenTables {
@@ -305,8 +298,7 @@ pub fn generate(threads: usize, log: &mut dyn FnMut(String)) -> LastLayer {
             .collect(),
         eo: PieceTable::build([], [], &ALL_MOVES),
     };
-    let u_turns: [Vec<u8>; LL_PIECES] =
-        [vec![], vec![mv(FACE_U, 0)], vec![mv(FACE_U, 1)], vec![mv(FACE_U, 2)]];
+    let u_turns: [Vec<u8>; LL_PIECES] = [vec![], vec![mv(FACE_U, 0)], vec![mv(FACE_U, 1)], vec![mv(FACE_U, 2)]];
     // best[idx] = shortest algorithm known that *solves* state idx
     let mut best: Vec<Option<Vec<u8>>> = vec![None; LL_INDEX_SIZE];
     let mut core_seen = vec![false; LL_INDEX_SIZE];

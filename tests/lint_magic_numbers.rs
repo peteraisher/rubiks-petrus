@@ -101,9 +101,7 @@ fn violations(src: &str) -> Vec<(usize, String)> {
             in_const = true;
             depth = 0;
         }
-        let allowed = in_const
-            || t.starts_with("#[")
-            || raw_lines.get(n).is_some_and(|l| l.contains("// magic-ok:"));
+        let allowed = in_const || t.starts_with("#[") || raw_lines.get(n).is_some_and(|l| l.contains("// magic-ok:"));
         let b = line.as_bytes();
         let mut i = 0;
         while i < b.len() {
@@ -117,8 +115,7 @@ fn violations(src: &str) -> Vec<(usize, String)> {
             let prev_ident = i > 0 && (b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_');
             if c.is_ascii_digit() && !prev_ident {
                 let start = i;
-                while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_' || b[i] == b'.')
-                {
+                while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_' || b[i] == b'.') {
                     // stop at a range `..` or method call on the literal
                     if b[i] == b'.' && !b.get(i + 1).is_some_and(|d| d.is_ascii_digit()) {
                         break;

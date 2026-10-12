@@ -15,8 +15,8 @@
 //! alternative step solutions trades time for shorter totals.
 
 use crate::cube::*;
-use crate::facelet::{NSYM, SYM_MOVE};
 pub use crate::defs::*;
+use crate::facelet::{NSYM, SYM_MOVE};
 use crate::ll::{LastLayer, LlMode};
 /// Longest single-step solution searched for (far above any real step).
 pub const MAX_STEP_DEPTH: usize = 24;
@@ -477,14 +477,8 @@ impl Beam<'_> {
                 u8::MAX
             };
             self.sols.clear();
-            self.nodes += solve_step_into::<S>(
-                self.t,
-                &p.state,
-                self.opts.alts,
-                self.opts.slack,
-                max_len,
-                &mut self.sols,
-            );
+            self.nodes +=
+                solve_step_into::<S>(self.t, &p.state, self.opts.alts, self.opts.slack, max_len, &mut self.sols);
             for s in &self.sols {
                 let mut child = p.extend(s.as_slice());
                 if self.opts.lookahead {
