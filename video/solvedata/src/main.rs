@@ -31,7 +31,49 @@ const PICK_BATCH: Duration = Duration::from_millis(2);
 const PICK_BATCHES: usize = 3;
 const N_SOLVERS: usize = 4;
 
-/// Median nanoseconds per call of `f`, warm.
+/// Whole-solve times, as for a scramble the solver has not seen before:
+/// each timed solve of the scramble comes after at least FLUSH of solving
+/// other random cubes with the same solver. Fewer would not do: the branch
+/// predictor still remembers petrus' search for this scramble after 100
+/// other solves (about 0.2 ms), and its time only settles after about 1000.
+const FLUSH: Duration = Duration::from_millis(2);
+const INTERLEAVED_SAMPLES: usize = 101;
+const OTHER_CUBES: usize = 4096;
+const OTHER_SEED: u64 = 4242;
+/// Before timing, solve other cubes for this long so every table page is
+/// mapped and cached as in steady use.
+const WARM: Duration = Duration::from_millis(300);
+
+/// Median nanoseconds of single calls of `target`, each preceded by at
+/// least FLUSH of calls of `other` on different cubes.
+fn time_interleaved(mut target: impl FnMut(), mut other: impl FnMut(usize)) -> f64 {
+    let mut next = 0;
+    let mut run_others = |d: Duration| {
+        let t0 = Instant::now();
+        loop {
+            other(next % OTHER_CUBES);
+            next += 1;
+            if t0.elapsed() >= d {
+                break;
+            }
+        }
+    };
+    run_others(WARM);
+    let mut v: Vec<f64> = (0..INTERLEAVED_SAMPLES)
+        .map(|_| {
+            run_others(FLUSH);
+            let t0 = Instant::now();
+            target();
+            t0.elapsed().as_nanos() as f64
+        })
+        .collect();
+    v.sort_by(f64::total_cmp);
+    v[v.len() / 2]
+}
+
+/// Median nanoseconds per call of `f`, repeated warm. Used for the split
+/// between steps (too short to time singly); the renderer scales the steps
+/// to the interleaved whole-solve time.
 fn time_ns(f: impl FnMut()) -> f64 {
     time_ns_with(MIN_BATCH, BATCHES, f)
 }
@@ -319,23 +361,37 @@ fn data(facelets: &str) {
     black_box(solve(&t, &cube, &Options::SHORT));
     let k = cubie(facelets);
     let f = facelets.to_string();
+    let mut rng = Rng::new(OTHER_SEED);
+    let others: Vec<Cube> = (0..OTHER_CUBES).map(|_| Cube::random(&mut rng)).collect();
+    let other_f: Vec<String> = others.iter().map(|c| c.to_facelets()).collect();
+    let other_k: Vec<CubieCube> = other_f.iter().map(|s| cubie(s)).collect();
 
     let petrus = SolverOut {
         id: "petrus",
         name: "petrus (this project)",
         method: "Petrus",
-        total_ns: time_ns(|| {
-            black_box(solve(&t, black_box(&cube), &Options::FAST));
-        }),
+        total_ns: time_interleaved(
+            || {
+                black_box(solve(&t, black_box(&cube), &Options::FAST));
+            },
+            |i| {
+                black_box(solve(&t, black_box(&others[i]), &Options::FAST));
+            },
+        ),
         steps: petrus_steps(&t, &cube),
     };
 
     let n0 = rival_nodes();
     let sol = min2phase::solve(&f, MIN2PHASE_TARGET);
     let nodes = rival_nodes() - n0;
-    let m2p_ns = time_ns(|| {
-        black_box(min2phase::solve(black_box(&f), MIN2PHASE_TARGET));
-    });
+    let m2p_ns = time_interleaved(
+        || {
+            black_box(min2phase::solve(black_box(&f), MIN2PHASE_TARGET));
+        },
+        |i| {
+            black_box(min2phase::solve(black_box(&other_f[i]), MIN2PHASE_TARGET));
+        },
+    );
     let min2phase = SolverOut {
         id: "min2phase",
         name: "min2phase",
@@ -355,18 +411,28 @@ fn data(facelets: &str) {
         id: "cfop",
         name: "rcuber",
         method: "CFOP",
-        total_ns: time_ns(|| {
-            black_box(CFOPSolver { cube: black_box(k) }.solve());
-        }),
+        total_ns: time_interleaved(
+            || {
+                black_box(CFOPSolver { cube: black_box(k) }.solve());
+            },
+            |i| {
+                black_box(CFOPSolver { cube: black_box(other_k[i]) }.solve());
+            },
+        ),
         steps: rcuber_steps(k, &CFOP_STEPS),
     };
     let roux = SolverOut {
         id: "roux",
         name: "rcuber",
         method: "Roux",
-        total_ns: time_ns(|| {
-            black_box(RouxSolver::new(black_box(k)).solve());
-        }),
+        total_ns: time_interleaved(
+            || {
+                black_box(RouxSolver::new(black_box(k)).solve());
+            },
+            |i| {
+                black_box(RouxSolver::new(black_box(other_k[i])).solve());
+            },
+        ),
         steps: rcuber_steps(k, &ROUX_STEPS),
     };
 

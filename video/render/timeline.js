@@ -10,6 +10,8 @@ export const INTRO = 2.5;
 /// last-layer table lookup (a quick burst: the speed never drops).
 const SEC_PER_MOVE_PETRUS = 0.17;
 const SEC_PER_MOVE_LOOKUP = 0.04;
+/// Petrus' stage lasts at most about this long (so the video stays short).
+const PETRUS_STAGE_SEC = 11;
 /// After petrus, each speed lasts about this long; a finish less than
 /// MERGE_RATIO times later than the stage's first finish shares its speed.
 const STAGE_SEC = 4;
@@ -82,10 +84,14 @@ export function buildTimeline(data, nodes) {
     v += (t1 - t0) / rate;
   };
   const petrus = solvers.find((s) => s.id === 'petrus');
-  // Petrus at one slow-motion rate, slow enough for its busiest step.
+  // Petrus at one slow-motion rate, slow enough for its busiest step but
+  // no longer than PETRUS_STAGE_SEC in all.
   const last = petrus.steps.length - 1;
   let rate = nice(
-    Math.min(...petrus.steps.map((st, i) => (st.t1 - st.t0) / (st.count * (i === last ? SEC_PER_MOVE_LOOKUP : SEC_PER_MOVE_PETRUS)))),
+    Math.max(
+      petrus.total / PETRUS_STAGE_SEC,
+      Math.min(...petrus.steps.map((st, i) => (st.t1 - st.t0) / (st.count * (i === last ? SEC_PER_MOVE_LOOKUP : SEC_PER_MOVE_PETRUS)))),
+    ),
   );
   push(0, petrus.total, rate);
   // Then one stage per group of finishes.

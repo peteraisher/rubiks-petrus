@@ -238,7 +238,10 @@ video/export.sh                      # pick a typical scramble, measure, write J
 ```
 
 The scramble is the candidate closest to every solver's mean length and
-median time. Timings use the published crates unmodified; node counts come
+median time. Each solver's time is the median of single solves of the
+scramble, each after 2 ms of solving other random cubes, so it is a
+first-time solve: repeating one scramble back to back lets the branch
+predictor learn its search (petrus then takes ~1.4 us instead of ~2.2). Timings use the published crates unmodified; node counts come
 from a second build against copies with a counter added
 (`video/count/vendor.sh`). `npm test` checks the renderer's cube model
 against the Rust facelets after every Petrus step. Rendering needs

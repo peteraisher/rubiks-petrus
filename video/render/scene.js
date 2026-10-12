@@ -203,7 +203,7 @@ async function main() {
   document.getElementById('sub').textContent = `Same scramble, four solvers, real measured times · ${data.cpu}, one thread`;
   document.getElementById('footer').innerHTML =
     `<b>*</b> min2phase (Kociemba's two-phase algorithm) finds much shorter solutions but is a computer method, not one a person can follow. ` +
-    `CFOP and Roux: rcuber 0.7.20; min2phase 0.2.4 (Rust crates). Times: median of repeated warm solves of this scramble. ` +
+    `CFOP and Roux: rcuber 0.7.20; min2phase 0.2.4 (Rust crates). Times: median of single solves of this scramble, each after 2 ms of solving other cubes. ` +
     `Nodes: search states generated.`;
 
   const rows = order.map((id) => {
