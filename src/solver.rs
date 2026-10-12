@@ -371,18 +371,45 @@ struct Beam<'a> {
     nodes: u64,
 }
 
+/// Turns merged across a step boundary can shorten the running total; when
+/// bounding a partial's length after the next step, allow for this many.
+/// (Longer cascades of cancellation are possible but vanishingly rare, and
+/// this only steers which candidates the beam explores.)
+const BOUNDARY_SAVING: usize = 2;
+
 impl Beam<'_> {
+    /// Expand the beam by one step. Partials are searched in order of a
+    /// lower bound on their length after the step (current length plus the
+    /// step heuristic); once the beam is full and no remaining partial can
+    /// beat its worst member, the rest are skipped. With exact heuristics
+    /// (2x2x2, F2L) choosing among 48 orientations costs 48 table lookups
+    /// plus one search, not 48 searches.
     fn expand<S: Step>(&mut self) {
+        let width = self.opts.beam.max(1);
+        let mut order: Vec<(usize, usize)> = self
+            .cur
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let saving = if p.merged.is_empty() { 0 } else { BOUNDARY_SAVING };
+                ((p.merged.len() + S::h(self.t, &p.state) as usize).saturating_sub(saving), i)
+            })
+            .collect();
+        order.sort_unstable();
         self.next.clear();
-        for p in &self.cur {
+        for &(bound, i) in &order {
+            if self.next.len() >= width && self.next[width - 1].merged.len() <= bound {
+                break;
+            }
+            let p = &self.cur[i];
             self.sols.clear();
             self.nodes += solve_step_into::<S>(self.t, &p.state, self.opts.alts, self.opts.slack, &mut self.sols);
             for s in &self.sols {
                 self.next.push(p.extend(s.as_slice()));
             }
+            keep_best(&mut self.next, width);
         }
         std::mem::swap(&mut self.cur, &mut self.next);
-        keep_best(&mut self.cur, self.opts.beam);
         self.names.push(S::NAME);
     }
 }
