@@ -115,6 +115,12 @@ pub trait Step {
     const MOVES: &'static [u8];
     fn goal(c: &Cube) -> bool;
     fn h(t: &Tables, c: &Cube) -> u8;
+    /// `h(c) >= bound`, but free to stop at the first table that proves it:
+    /// most search nodes are pruned, so this saves most lookups.
+    #[inline(always)]
+    fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
+        Self::h(t, c) >= bound
+    }
 }
 
 pub struct Block222;
@@ -140,6 +146,15 @@ fn h_223(t: &Tables, c: &Cube) -> u8 {
     t.t223_d.get(c).max(t.t223_l.get(c)).max(t.t222.get(c)).max(t.t222_front.get(c))
 }
 
+#[inline(always)]
+fn exceeds_223(t: &Tables, c: &Cube, bound: u8) -> bool {
+    // small (cache-resident) 2x2x2 tables first, large 2x2x3 halves after
+    t.t222.get(c) >= bound
+        || t.t222_front.get(c) >= bound
+        || t.t223_d.get(c) >= bound
+        || t.t223_l.get(c) >= bound
+}
+
 impl Step for Expand223 {
     const NAME: &'static str = "2x2x3";
     const MOVES: &'static [u8] = &ALL_MOVES;
@@ -149,6 +164,10 @@ impl Step for Expand223 {
     #[inline(always)]
     fn h(t: &Tables, c: &Cube) -> u8 {
         h_223(t, c)
+    }
+    #[inline(always)]
+    fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
+        exceeds_223(t, c, bound)
     }
 }
 
@@ -162,6 +181,10 @@ impl Step for Block223 {
     fn h(t: &Tables, c: &Cube) -> u8 {
         h_223(t, c)
     }
+    #[inline(always)]
+    fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
+        exceeds_223(t, c, bound)
+    }
 }
 
 impl Step for EdgeOrient {
@@ -173,6 +196,10 @@ impl Step for EdgeOrient {
     #[inline(always)]
     fn h(t: &Tables, c: &Cube) -> u8 {
         t.teo.get(c).max(t.t223_d.get(c)).max(t.t223_l.get(c))
+    }
+    #[inline(always)]
+    fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
+        t.teo.get(c) >= bound || t.t223_d.get(c) >= bound || t.t223_l.get(c) >= bound
     }
 }
 
@@ -208,12 +235,12 @@ impl Dfs<'_> {
             }
             let n = c.apply_move(m as usize);
             self.nodes += 1;
-            let h = S::h(self.t, &n);
-            if h >= togo {
+            if S::exceeds(self.t, &n, togo) {
                 continue;
             }
-            if togo == 1 {
-                if S::goal(&n) {
+            if S::goal(&n) {
+                // reaching the goal early means a shorter solution exists
+                if togo == 1 {
                     let mut sol = self.path;
                     sol.push(m);
                     self.found.push(sol);
@@ -223,8 +250,7 @@ impl Dfs<'_> {
                 }
                 continue;
             }
-            // reaching the goal early means a shorter solution already exists
-            if h == 0 && S::goal(&n) {
+            if togo == 1 {
                 continue;
             }
             self.path.push(m);
