@@ -216,6 +216,26 @@ cargo run --release --manifest-path compare/Cargo.toml -- 1000
 target/release/petrus gen-ll data/ll.bin           # regenerate the LL table
 ```
 
+### Solve video
+
+`video/` renders one scramble solved by petrus `fast`, min2phase, rcuber
+CFOP and rcuber Roux side by side as an MP4. Each solver's moves play out
+over its measured step times, slowed down and then sped up so every solver
+finishes on screen:
+
+```
+video/export.sh                      # pick a typical scramble, measure, write JSON
+(cd video/render && npm install && npm test && node render.mjs)
+                                     # -> video/render/out/petrus-race.mp4
+```
+
+The scramble is the candidate closest to every solver's mean length and
+median time. Timings use the published crates unmodified; node counts come
+from a second build against copies with a counter added
+(`video/count/vendor.sh`). `npm test` checks the renderer's cube model
+against the Rust facelets after every Petrus step. Rendering needs
+`ffmpeg` and Playwright's Chromium.
+
 As a library: `petrus::solver::{Tables, solve, Options}`, with cubes from
 `Cube::from_seq`, `Cube::from_facelets` or `Cube::random`.
 

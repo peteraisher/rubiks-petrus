@@ -1,0 +1,28 @@
+{
+  "facelets": "RLBDUDLRRDRDDRULFLBBFLFBUBDBUFLDLDFFFFUULUBBRLDUFBRURR",
+  "cpu": "Apple M1 Pro",
+  "solvers": [
+    {"id": "petrus", "name": "petrus (this project)", "method": "Petrus", "total_ns": 1437.7, "steps": [
+      {"name": "2x2x2 block", "moves": "R2 D' B' D2 R D2", "htm": 6, "ns": 218.6, "nodes": 43, "facelets": "UUUDUFLRBDULBRFFRFBBRLFUFRDUDRDDFDDLBFULLULLRFRRLBBDBB"},
+      {"name": "2x2x3 block", "moves": "R F2 U' F2 D' F D", "htm": 7, "ns": 346.2, "nodes": 37, "facelets": "RUUUUDBUULRFRRULFRRLBFFBFFFDDUDDRDDFBRULLLLLLRBDFBBDBB"},
+      {"name": "Edge orientation", "moves": "R2 F' U F", "htm": 4, "ns": 143.8, "nodes": 16, "facelets": "RURUUUBURFBDRRRURLRLUFFFFFLDDFDDDDDUDFULLLLLLBRFBBBBBB"},
+      {"name": "First two layers", "moves": "U' R U R U2 R U2 R' U' R2 U' R", "htm": 12, "ns": 189.0, "nodes": 23, "facelets": "BURUUULUBRBURRRRRRURUFFFFFFDDDDDDDDDUFFLLLLLLFLLBBBBBB"},
+      {"name": "Last layer (ZBLL)", "moves": "U L U2 L' U2 L' B L' F' L' F L' B'", "htm": 13, "ns": 32.1, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
+    ]},
+    {"id": "min2phase", "name": "min2phase", "method": "Kociemba two-phase", "total_ns": 272968.1, "steps": [
+      {"name": "Two-phase search", "moves": "U' D L U L B L' F D F2 D L2 D' B2 D L2 B2 D2 R2 B2 U'", "htm": 21, "ns": 272968.1, "nodes": null, "facelets": null}
+    ]},
+    {"id": "cfop", "name": "rcuber", "method": "CFOP", "total_ns": 776516.9, "steps": [
+      {"name": "Cross", "moves": "B R2 U' F2 L' B'", "htm": 6, "ns": 623016.9, "nodes": null, "facelets": null},
+      {"name": "F2L", "moves": "R' U' R U' L' U2 L2 F' L' F B' U B R U2 R' B' U' B U2 R' U2 R2 B' R' B B' U B U' L U L' U2 L U' L'", "htm": 37, "ns": 153765.3, "nodes": null, "facelets": null},
+      {"name": "OLL", "moves": "U' R U R' U R' F R F' R U2 R'", "htm": 12, "ns": 6143.5, "nodes": null, "facelets": null},
+      {"name": "PLL", "moves": "R U' R U R U R U' R' U' R2", "htm": 11, "ns": 2372.2, "nodes": null, "facelets": null}
+    ]},
+    {"id": "roux", "name": "rcuber", "method": "Roux", "total_ns": 24733542.0, "steps": [
+      {"name": "First block", "moves": "M' D R F2 M2 F' B'", "htm": 9, "ns": 7465625.0, "nodes": null, "facelets": null},
+      {"name": "Second block", "moves": "Rw' U2 R2 U' R M U' R2 U2 R'", "htm": 11, "ns": 7503395.8, "nodes": null, "facelets": null},
+      {"name": "CMLL", "moves": "U U' R2 D R' U R D' R' U R' U' R U' R' U2", "htm": 16, "ns": 8868.0, "nodes": null, "facelets": null},
+      {"name": "LSE", "moves": "U M U M U M U' M U' M U'", "htm": 16, "ns": 8604895.8, "nodes": null, "facelets": null}
+    ]}
+  ]
+}

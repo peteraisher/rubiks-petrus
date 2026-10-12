@@ -1,0 +1,32 @@
+# The solvedata program built against copies of min2phase and rcuber with a
+# node counter added (see vendor.sh). Only its node counts are used; its
+# timings include the counter overhead.
+[package]
+name = "solvedata-count"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "solvedata-count"
+path = "../solvedata/src/main.rs"
+
+[features]
+default = ["count"]
+count = []
+
+[dependencies]
+petrus = { path = "../.." }
+min2phase = "=0.2.4"
+rcuber = { version = "=0.7.20", default-features = false }
+
+[patch.crates-io]
+min2phase = { path = "vendor/min2phase-0.2.4" }
+rcuber = { path = "vendor/rcuber-0.7.20" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1

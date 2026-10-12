@@ -1,0 +1,13 @@
+{
+  "name": "render",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.55.0",
+    "three": "0.170.0"
+  },
+  "private": true
+}

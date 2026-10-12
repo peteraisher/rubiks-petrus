@@ -1,0 +1,26 @@
+# Exports one representative solve per solver (moves, per-step times) as
+# JSON for the video renderer. Uses the published, unmodified min2phase and
+# rcuber crates so the timings are theirs; node counts come from
+# ../count, which builds the same program against instrumented copies.
+#   cargo run --release --manifest-path video/solvedata/Cargo.toml -- pick
+[package]
+name = "solvedata"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+# Read the node counters added by ../count/vendor.sh.
+count = []
+
+[dependencies]
+petrus = { path = "../.." }
+min2phase = "=0.2.4"
+rcuber = { version = "=0.7.20", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
