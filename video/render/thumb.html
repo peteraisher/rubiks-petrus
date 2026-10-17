@@ -2,23 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Petrus thumbnail</title>
+<title>Solve video thumbnail</title>
 <script type="importmap">
 { "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }
 </script>
 <style>
-:root { --bg: #0a0d12; --text: #eef2f6; --muted: #8794a3; --accent: #ffc53d; --line: #222c38;
+:root { --bg: #0a0d12; --text: #eef2f6; --muted: #8794a3; --accent: #ffc53d; --line: #222c38; --strike: #ff5d5d;
   --mono: "SF Mono", ui-monospace, Menlo, monospace; }
 * { box-sizing: border-box; margin: 0; }
 html, body { width: 1080px; height: 1350px; overflow: hidden; background: var(--bg); color: var(--text);
   font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; }
 body { background: radial-gradient(ellipse 70% 45% at 50% 52%, #1a2433 0%, var(--bg) 70%); }
-.head { text-align: center; padding-top: 64px; }
-.big { font-size: 250px; font-weight: 850; letter-spacing: -0.05em; line-height: 0.95; color: var(--accent);
+.head { text-align: center; padding-top: 34px; }
+.was { position: relative; display: inline-block; font-size: 84px; font-weight: 800; letter-spacing: -0.03em; color: var(--muted); }
+.was i { position: absolute; left: -4%; top: 50%; width: 108%; height: 0.12em; background: var(--strike); border-radius: 0.06em;
+  transform: rotate(-4deg); box-shadow: 0 0 18px rgba(255, 93, 93, 0.5); }
+.big { font-size: 230px; font-weight: 850; letter-spacing: -0.05em; line-height: 0.95; color: var(--accent);
   text-shadow: 0 0 60px rgba(255, 197, 61, 0.35); }
 .big span { font-size: 0.62em; letter-spacing: -0.02em; }
 .sub { font-size: 60px; font-weight: 750; letter-spacing: -0.02em; margin-top: 10px; }
-canvas { display: block; width: 1080px; height: 560px; margin-top: 4px; }
+canvas { display: block; width: 1080px; height: 470px; margin-top: 0; }
 .ladder { width: 720px; margin: 6px auto 0; font-size: 38px; }
 .row { display: flex; justify-content: space-between; align-items: baseline; padding: 13px 6px; border-top: 2px solid var(--line); color: var(--muted); }
 .row:first-child { border-top: none; color: var(--accent); font-size: 46px; font-weight: 800; }
@@ -27,7 +30,7 @@ canvas { display: block; width: 1080px; height: 560px; margin-top: 4px; }
 </style>
 </head>
 <body>
-  <div class="head"><div class="big" id="big"></div><div class="sub">to solve a Rubik's Cube</div></div>
+  <div class="head"><div class="was" id="was"></div><div class="big" id="big"></div><div class="sub">to solve a Rubik's Cube</div></div>
   <canvas id="c"></canvas>
   <div class="ladder" id="ladder"></div>
 <script type="module" src="./thumb.js"></script>

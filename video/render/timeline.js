@@ -6,14 +6,18 @@ import { CubeModel, parseSeq } from './cube.js';
 export const FPS = 60;
 /// Seconds of title before the clocks start.
 export const INTRO = 2.5;
+/// The solvers whose steps are table lookups (this project's): they race
+/// in the first, slow-motion stage.
+const LOOKUP_SOLVERS = ['thistle', 'petrus'];
 /// Least video seconds per move for petrus' first four steps, and for its
 /// last-layer lookup, its quickest step (a quick burst: the speed never
 /// drops).
 const SEC_PER_MOVE_PETRUS = 0.17;
 const SEC_PER_MOVE_LOOKUP = 0.04;
-/// Petrus' stage lasts at most about this long (so the video stays short).
-const PETRUS_STAGE_SEC = 11;
-/// After petrus, each speed lasts about this long; a finish less than
+/// The first stage lasts at most about this long (so the video stays
+/// short).
+const LOOKUP_STAGE_SEC = 11;
+/// After it, each speed lasts about this long; a finish less than
 /// MERGE_RATIO times later than the stage's first finish shares its speed.
 const STAGE_SEC = 4;
 const MERGE_RATIO = 5;
@@ -22,7 +26,7 @@ const NICE = [1, 2, 5];
 /// After the last solver finishes: pause, then the summary card.
 export const HOLD = 0.8;
 export const SUMMARY_FADE = 0.6;
-export const SUMMARY = 5.5;
+export const SUMMARY = 7;
 /// Relative tolerance when comparing summed step times.
 const EPS = 1e-9;
 
@@ -84,20 +88,22 @@ export function buildTimeline(data, nodes) {
     segments.push({ v0: v, v1: v + (t1 - t0) / rate, t0, t1, rate });
     v += (t1 - t0) / rate;
   };
+  // The lookup solvers at one slow-motion rate, slow enough for petrus'
+  // busiest step (and every thistle move a quick burst at least) but no
+  // longer than LOOKUP_STAGE_SEC in all.
   const petrus = solvers.find((s) => s.id === 'petrus');
-  // Petrus at one slow-motion rate, slow enough for its busiest step but
-  // no longer than PETRUS_STAGE_SEC in all.
+  const thistle = solvers.find((s) => s.id === 'thistle');
+  const stageEnd = Math.max(...solvers.filter((s) => LOOKUP_SOLVERS.includes(s.id)).map((s) => s.total));
   const last = petrus.steps.length - 1;
-  let rate = nice(
-    Math.max(
-      petrus.total / PETRUS_STAGE_SEC,
-      Math.min(...petrus.steps.map((st, i) => (st.t1 - st.t0) / (st.count * (i === last ? SEC_PER_MOVE_LOOKUP : SEC_PER_MOVE_PETRUS)))),
-    ),
-  );
-  push(0, petrus.total, rate);
+  const paces = [
+    ...petrus.steps.map((st, i) => (st.t1 - st.t0) / (st.count * (i === last ? SEC_PER_MOVE_LOOKUP : SEC_PER_MOVE_PETRUS))),
+    ...thistle.steps.map((st) => (st.t1 - st.t0) / (st.count * SEC_PER_MOVE_LOOKUP)),
+  ];
+  let rate = nice(Math.max(stageEnd / LOOKUP_STAGE_SEC, Math.min(...paces)));
+  push(0, stageEnd, rate);
   // Then one stage per group of finishes.
-  const finishes = solvers.map((s) => s.total).filter((t) => t > petrus.total * (1 + EPS)).sort((a, b) => a - b);
-  let t = petrus.total;
+  const finishes = solvers.map((s) => s.total).filter((t) => t > stageEnd * (1 + EPS)).sort((a, b) => a - b);
+  let t = stageEnd;
   for (let i = 0; i < finishes.length; ) {
     let e = finishes[i++];
     while (i < finishes.length && finishes[i] < e * MERGE_RATIO) e = finishes[i++];

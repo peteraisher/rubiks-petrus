@@ -274,10 +274,12 @@ target/release/petrus gen-ll data/ll.bin           # regenerate the LL table
 
 ### Solve video
 
-`video/` renders one scramble solved by petrus `fast`, min2phase, rcuber
-CFOP and rcuber Roux side by side as an MP4. Each solver's moves play out
-over its measured step times, slowed down and then sped up so every solver
-finishes on screen:
+`video/` renders one scramble solved by thistle `fast`, petrus `fast`,
+min2phase and rcuber CFOP side by side as an MP4 (rcuber Roux, the slowest,
+raced in the first version). Each solver's moves play out over its
+measured step times, slowed down and then sped up so every solver finishes
+on screen. The first published version's claims (petrus in 2.21 µs, 150x
+faster than the next solver) are struck through on screen and replaced:
 
 ```
 video/export.sh                      # pick a typical scramble, measure, write JSON
@@ -287,15 +289,20 @@ video/export.sh                      # pick a typical scramble, measure, write J
 ```
 
 The scramble is the candidate closest to every solver's mean length and
-median time. Each solver's time is the median of single solves of the
+median time (among those where neither thistle's nor petrus' steps merge
+turns across a boundary, since the video plays steps as found). Each
+solver's time is the mean of the middle half of 401 single solves of the
 scramble, each after 2 ms of solving other random cubes, so it is a
-first-time solve: repeating one scramble back to back lets the branch
+first-time solve (a mean, not a median: the timer ticks every 41.7 ns, and
+readings at random tick phases average out to the true time, where a
+median would round to a tick): repeating one scramble back to back lets the branch
 predictor learn a search (petrus' searches took ~1.4 µs instead of ~2.2
 that way, before its steps were compiled). Timings use the published
 crates unmodified; node counts come from a second build against copies
-with a counter added (`video/count/vendor.sh`); petrus' compiled steps
-count as one lookup each. `npm test` checks the renderer's cube model
-against the Rust facelets after every Petrus step. Rendering needs
+with a counter added (`video/count/vendor.sh`); thistle's phases and
+petrus' compiled steps count as one lookup each. `npm test` checks the
+renderer's cube model against the Rust facelets after every thistle and
+Petrus step. Rendering needs
 `ffmpeg` and Playwright's Chromium.
 
 As a library: `petrus::solver::{Tables, solve, Options}`, with cubes from

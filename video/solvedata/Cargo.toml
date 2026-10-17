@@ -1,5 +1,5 @@
 # Exports one representative solve per solver (moves, per-step times) as
-# JSON for the video renderer. Uses the published, unmodified min2phase and
+# JSON for the video renderer (thistle and petrus from this repo). Uses the published, unmodified min2phase and
 # rcuber crates so the timings are theirs; node counts come from
 # ../count, which builds the same program against instrumented copies.
 #   cargo run --release --manifest-path video/solvedata/Cargo.toml -- pick
@@ -17,6 +17,7 @@ count = []
 
 [dependencies]
 petrus = { path = "../.." }
+thistle = { path = "../../thistle" }
 min2phase = "=0.2.4"
 rcuber = { version = "=0.7.20", default-features = false }
 

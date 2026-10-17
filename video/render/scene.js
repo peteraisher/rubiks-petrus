@@ -26,17 +26,32 @@ const HOME_VIEW = [35, 28];
 /// pieces being solved face the viewer: blocks from below, last layer from
 /// above.
 const VIEWS = {
+  thistle: [[-30, 28], [35, -24], [-40, 30], [30, 32]],
   petrus: [[-140, -26], [-75, -26], [-25, 24], [40, -22], [28, 38]],
   min2phase: [[-20, 26]],
   cfop: [[25, -38], [40, -18], [25, 40], [30, 32]],
-  roux: [[-60, -10], [60, -10], [25, 40], [0, 30]],
 };
 const LABELS = {
+  thistle: ['Thistlethwaite*', 'thistle · this project'],
   petrus: ['Petrus', 'this project · Rust'],
   min2phase: ['min2phase*', 'Kociemba two-phase'],
   cfop: ['CFOP', 'rcuber'],
-  roux: ['Roux', 'rcuber'],
 };
+/// The fastest solver, highlighted, and this project's solvers.
+const HERO = 'thistle';
+const OURS = ['thistle', 'petrus'];
+/// What the first published version of this video claimed (petrus before
+/// its steps were compiled): struck through, then replaced.
+const PUBLISHED_NS = 2209;
+const PUBLISHED_RIVAL_RATIO = 150;
+/// Strike-throughs: the header's during the title, the summary's after it
+/// fades in; each line draws over STRIKE while the old claim dims to
+/// STRUCK, then the new claim fades in.
+const TITLE_STRIKE_AT = 0.7;
+const SUMMARY_STRIKE_AT = 0.9;
+const STRIKE = 0.45;
+const REVEAL = 0.45;
+const STRUCK = 0.5;
 const DEG = Math.PI / 180;
 const NS_PER_S = 1e9;
 
@@ -52,6 +67,8 @@ function human(ns) {
   return `${sig3(ns / 1e9)} s`;
 }
 const times = (x) => `${comma(x)}×`;
+// Ratios to two significant digits (2.5, 14, 150).
+const sig2 = (x) => x.toLocaleString('en-US', { maximumSignificantDigits: 2 });
 /// The HUD appears at the start, at each speed change and at the finish,
 /// stays for HUD_HOLD seconds and fades.
 const HUD_FIRST = 0.4;
@@ -66,7 +83,7 @@ class Panel {
     this.tl = tl;
     this.s = s;
     const el = document.createElement('div');
-    el.className = 'panel' + (s.id === 'petrus' ? ' hero' : '');
+    el.className = 'panel' + (s.id === HERO ? ' hero' : '');
     const [name, sub] = LABELS[s.id];
     el.innerHTML = `<div class="name"><b>${name}</b><span>${sub}</span></div><div class="badge"></div>
       <canvas></canvas><div class="step"></div><div class="timer"></div>
@@ -195,31 +212,42 @@ async function main() {
   const tl = buildTimeline(data, nodes);
   const by = Object.fromEntries(tl.solvers.map((s) => [s.id, s]));
   const order = [...tl.solvers].sort((a, b) => a.total - b.total).map((s) => s.id);
+  const hero = by[HERO];
   const petrus = by.petrus;
   const grid = document.getElementById('grid');
-  const panels = ['petrus', 'min2phase', 'cfop', 'roux'].map((id) => new Panel(tl, by[id], grid));
+  const panels = ['thistle', 'petrus', 'min2phase', 'cfop'].map((id) => new Panel(tl, by[id], grid));
 
-  document.getElementById('title').innerHTML = `Solving a Rubik's Cube in <em>${human(petrus.total)}</em>`;
+  document.getElementById('title').innerHTML =
+    `Solving a Rubik's Cube in <span class="was">${human(PUBLISHED_NS)}<i></i></span> <em class="now">${human(hero.total)}</em>`;
   document.getElementById('sub').textContent = `Same scramble, four solvers, real measured times · ${data.cpu}, one thread`;
   document.getElementById('footer').innerHTML =
-    `<b>*</b> min2phase (Kociemba's two-phase algorithm) finds much shorter solutions but is a computer method, not one a person can follow. ` +
-    `CFOP and Roux: rcuber 0.7.20; min2phase 0.2.4 (Rust crates). Times: median of single solves of this scramble, each after 2 ms of solving other cubes. ` +
-    `Nodes: search states generated; for petrus, table lookups.`;
+    `<b>*</b> Computer methods, not ones a person can follow: thistle runs Thistlethwaite's four nested subgroups; ` +
+    `min2phase (Kociemba's two-phase algorithm) finds much shorter solutions. ` +
+    `CFOP: rcuber 0.7.20; min2phase 0.2.4 (Rust crates). Times: mean of the middle half of 401 single solves of this scramble, each after 2 ms of solving other cubes. ` +
+    `Nodes: search states generated; for thistle and petrus, table lookups.`;
 
   const rows = order.map((id) => {
     const s = by[id];
     const [name, sub] = LABELS[id];
-    return `<tr class="${id === 'petrus' ? 'hero' : ''}"><td>${name}<span>${s.method === name ? sub : s.method}</span></td>` +
+    return `<tr class="${id === HERO ? 'hero' : ''}"><td>${name}<span>${s.method === name.replace('*', '') ? sub : s.method}</span></td>` +
       `<td>${human(s.total)}</td><td>${s.htm}</td><td>${comma(s.nodes)}</td></tr>`;
   });
-  const rival = by[order[1]];
+  // the fastest solver this project did not write
+  const rival = by[order.find((id) => !OURS.includes(id))];
   document.getElementById('summary').innerHTML =
-    `<h2>Petrus: <em>${comma(rival.total / petrus.total)}× faster</em><br>than the next-fastest solver tested</h2>` +
+    `<div class="was">Petrus: ${times(PUBLISHED_RIVAL_RATIO)} faster than the next-fastest solver tested<i></i></div>` +
+    `<h2 class="now">thistle: <em>${times(rival.total / hero.total)} faster</em><br>than the fastest solver we didn't write</h2>` +
     `<table><tr><th>SOLVER</th><th>TIME</th><th>MOVES</th><th>NODES</th></tr>${rows.join('')}</table>` +
-    `<div class="note"><b>petrus</b> follows Lars Petrus' method: 2x2x2 block, 2x2x3 block, edge orientation, ` +
-    `first two layers with R and U only, then the whole last layer in one look. Each step's optimal solution ` +
-    `is one lookup in tables built at compile time, with cube moves as ARM NEON table lookups.</div>` +
-    `<div class="note">* min2phase's ${by.min2phase.htm} moves are far fewer than any human method, at ${comma(by.min2phase.total / petrus.total)}× the time.</div>`;
+    `<div class="note"><b>thistle</b> solves in Thistlethwaite's four phases (orient edges; twist corners and place the ` +
+    `E-slice; reach the squares group; finish with half turns), each phase's optimal algorithm one lookup in tables ` +
+    `built at compile time, with no branch that depends on the cube.</div>` +
+    `<div class="note"><b>petrus</b>, Lars Petrus' method in five looked-up steps, is itself ` +
+    `${sig2(PUBLISHED_NS / petrus.total)}× faster than in the first version of this video (${human(PUBLISHED_NS)}).</div>`;
+  const titleWas = document.querySelector('#title .was i');
+  const titleNow = document.querySelector('#title .now');
+  const summaryWas = document.querySelector('#summary .was i');
+  const summaryNow = document.querySelector('#summary .now');
+  const summaryAt = tl.raceEnd + HOLD + SUMMARY_FADE;
 
   const hud = document.getElementById('hud');
   const el = (id) => document.getElementById(id);
@@ -259,9 +287,19 @@ async function main() {
       el('hudBig').textContent = human(realTotal);
       el('hudSmall').textContent = 'of real time for all four';
     }
-    hud.style.opacity = show;
+    // the HUD gives way to the summary
+    hud.style.opacity = show * (1 - smoothstep((v - tl.raceEnd - HOLD) / SUMMARY_FADE));
     hud.style.transform = `translate(-50%, -50%) scale(${1 - HUD_POP * pop})`;
     summary.style.opacity = smoothstep((v - tl.raceEnd - HOLD) / SUMMARY_FADE);
+    // the old claims struck through, the new ones revealed
+    const strike = (line, now, at) => {
+      const w = smoothstep((v - at) / STRIKE);
+      line.style.width = `${100 * w}%`;
+      line.parentElement.style.opacity = 1 - (1 - STRUCK) * w;
+      now.style.opacity = smoothstep((v - at - STRIKE) / REVEAL);
+    };
+    strike(titleWas, titleNow, TITLE_STRIKE_AT);
+    strike(summaryWas, summaryNow, summaryAt + SUMMARY_STRIKE_AT);
   };
   window.timeline = { duration: tl.duration, raceEnd: tl.raceEnd };
   window.renderFrame(0);

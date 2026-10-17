@@ -1,21 +1,25 @@
-// Thumbnail for the video post: the headline time, petrus' cube with its
-// first block solved and lit, and the four finishing times.
+// Thumbnail for the video post: the first version's headline time struck
+// through, the new one (thistle's), thistle's cube in the squares group
+// (after three of its four phases), and the four finishing times.
 import * as THREE from 'three';
 import { buildCubies, mat4 } from './cubemesh.js';
 import { buildTimeline } from './timeline.js';
 
 const W = 1080;
-const H = 560;
+const H = 470;
 const SUPERSAMPLE = 2;
-/// Petrus state shown: after this many steps (1 = 2x2x2 block).
-const STEPS_DONE = 1;
-const DIM = 0.12;
-/// Camera azimuth/elevation (degrees) that faces the block at DBL.
-const VIEW = [-138, -30];
+/// The solver shown, and its state: after this many steps (3 = in the
+/// squares group, only half turns left).
+const HERO = 'thistle';
+const STEPS_DONE = 3;
+/// What the first published version of the video claimed.
+const PUBLISHED_NS = 2209;
+/// Camera azimuth/elevation (degrees).
+const VIEW = [35, 28];
 const CAM_DIST = 9.6;
 const CAM_FOV = 30;
 const DEG = Math.PI / 180;
-const LABELS = { petrus: 'Petrus', min2phase: 'Kociemba two-phase', cfop: 'CFOP', roux: 'Roux' };
+const LABELS = { thistle: 'Thistlethwaite', petrus: 'Petrus', min2phase: 'Kociemba two-phase', cfop: 'CFOP' };
 
 function human(ns) {
   const sig3 = (x) => x.toLocaleString('en-US', { maximumSignificantDigits: 3 });
@@ -27,8 +31,9 @@ function human(ns) {
 async function main() {
   const [data, nodes] = await Promise.all(['data/solve.json', 'data/nodes.json'].map((f) => fetch(f).then((r) => r.json())));
   const tl = buildTimeline(data, nodes);
-  const petrus = tl.solvers.find((s) => s.id === 'petrus');
-  const [num, unit] = human(petrus.total);
+  const hero = tl.solvers.find((s) => s.id === HERO);
+  const [num, unit] = human(hero.total);
+  document.getElementById('was').innerHTML = `${human(PUBLISHED_NS).join(' ')}<i></i>`;
   document.getElementById('big').innerHTML = `${num}<span> ${unit}</span>`;
   document.getElementById('ladder').innerHTML = [...tl.solvers]
     .sort((a, b) => a.total - b.total)
@@ -47,13 +52,11 @@ async function main() {
   camera.add(key);
   scene.add(camera);
 
-  const groups = buildCubies(scene, petrus.cubies);
-  const k = petrus.steps[STEPS_DONE - 1].first + petrus.steps[STEPS_DONE - 1].count;
-  const lit = petrus.solvedAtStepEnd[STEPS_DONE];
-  petrus.cubies.forEach((c, i) => {
-    groups[i].matrix.copy(mat4(petrus.snapshots[k][i]));
+  const groups = buildCubies(scene, hero.cubies);
+  const k = hero.steps[STEPS_DONE - 1].first + hero.steps[STEPS_DONE - 1].count;
+  hero.cubies.forEach((c, i) => {
+    groups[i].matrix.copy(mat4(hero.snapshots[k][i]));
     groups[i].matrixWorldNeedsUpdate = true;
-    for (const m of groups[i].mats) m.color.copy(m.base).multiplyScalar(lit.has(c.id) ? 1 : DIM);
   });
   const [az, el] = VIEW;
   camera.position.set(Math.sin(az * DEG) * Math.cos(el * DEG), Math.sin(el * DEG), Math.cos(az * DEG) * Math.cos(el * DEG)).multiplyScalar(CAM_DIST);

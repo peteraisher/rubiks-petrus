@@ -19,6 +19,7 @@ count = []
 
 [dependencies]
 petrus = { path = "../.." }
+thistle = { path = "../../thistle" }
 min2phase = "=0.2.4"
 rcuber = { version = "=0.7.20", default-features = false }
 

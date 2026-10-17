@@ -15,6 +15,7 @@
   --muted: #8794a3;
   --accent: #ffc53d;
   --done: #3ddc84;
+  --strike: #ff5d5d;
   --mono: "SF Mono", ui-monospace, Menlo, monospace;
 }
 * { box-sizing: border-box; margin: 0; }
@@ -65,8 +66,16 @@ canvas { display: block; width: 464px; height: 318px; margin: 0 auto; }
 .bar div.cur i { background: var(--text); }
 footer { position: absolute; left: 30px; right: 30px; bottom: 26px; font-size: 16.5px; line-height: 1.45; color: var(--muted); }
 footer b { color: var(--text); font-weight: 600; }
-#summary { position: absolute; inset: 0; background: rgba(8, 11, 15, 0.985); opacity: 0; padding: 150px 60px 0; }
-#summary h2 { font-size: 46px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; }
+#summary { position: absolute; inset: 0; background: rgba(8, 11, 15, 0.985); opacity: 0; padding: 120px 60px 0; }
+#summary h2 { font-size: 46px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; margin-top: 18px; }
+/* a claim struck through: the line (i) is drawn across by the script */
+.was { position: relative; display: inline-block; }
+h1 .was { color: var(--accent); }
+.was i { position: absolute; left: -3%; top: 52%; height: 0.11em; width: 0; max-width: 106%; background: var(--strike);
+  border-radius: 0.06em; transform: rotate(-3deg); box-shadow: 0 0 12px rgba(255, 93, 93, 0.45); }
+#summary .was { font-size: 30px; font-weight: 700; }
+#summary .was i { left: -1%; max-width: 102%; transform: rotate(-1.2deg); }
+.now { opacity: 0; }
 #summary h2 em { font-style: normal; color: var(--accent); }
 #summary table { width: 100%; margin-top: 50px; border-collapse: collapse; font-size: 27px; }
 #summary th { text-align: right; font-size: 18px; color: var(--muted); font-weight: 600; letter-spacing: 0.06em; padding: 0 0 14px; }
