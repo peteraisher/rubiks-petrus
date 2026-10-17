@@ -2,27 +2,27 @@
   "facelets": "RLBDUDLRRDRDDRULFLBBFLFBUBDBUFLDLDFFFFUULUBBRLDUFBRURR",
   "cpu": "Apple M1 Pro",
   "solvers": [
-    {"id": "petrus", "name": "petrus (this project)", "method": "Petrus", "total_ns": 2625.0, "steps": [
-      {"name": "2x2x2 block", "moves": "R2 D' B' D2 R D2", "htm": 6, "ns": 229.0, "nodes": 43, "facelets": "UUUDUFLRBDULBRFFRFBBRLFUFRDUDRDDFDDLBFULLULLRFRRLBBDBB"},
-      {"name": "2x2x3 block", "moves": "R F2 U' F2 D' F D", "htm": 7, "ns": 359.3, "nodes": 37, "facelets": "RUUUUDBUULRFRRULFRRLBFFBFFFDDUDDRDDFBRULLLLLLRBDFBBDBB"},
-      {"name": "Edge orientation", "moves": "R2 F' U F", "htm": 4, "ns": 187.3, "nodes": 16, "facelets": "RURUUUBURFBDRRRURLRLUFFFFFLDDFDDDDDUDFULLLLLLBRFBBBBBB"},
-      {"name": "First two layers", "moves": "U' R U R U2 R U2 R' U' R2 U' R", "htm": 12, "ns": 189.8, "nodes": 23, "facelets": "BURUUULUBRBURRRRRRURUFFFFFFDDDDDDDDDUFFLLLLLLFLLBBBBBB"},
-      {"name": "Last layer (ZBLL)", "moves": "U L U2 L' U2 L' B L' F' L' F L' B'", "htm": 13, "ns": 31.4, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
+    {"id": "petrus", "name": "petrus (this project)", "method": "Petrus", "total_ns": 375.0, "steps": [
+      {"name": "2x2x2 block", "moves": "R2 D' B' D2 R D2", "htm": 6, "ns": 80.1, "nodes": 1, "facelets": "UUUDUFLRBDULBRFFRFBBRLFUFRDUDRDDFDDLBFULLULLRFRRLBBDBB"},
+      {"name": "2x2x3 block", "moves": "R F2 U' F2 D' F D", "htm": 7, "ns": 81.7, "nodes": 1, "facelets": "RUUUUDBUULRFRRULFRRLBFFBFFFDDUDDRDDFBRULLLLLLRBDFBBDBB"},
+      {"name": "Edge orientation", "moves": "R2 F' U F", "htm": 4, "ns": 81.6, "nodes": 1, "facelets": "RURUUUBURFBDRRRURLRLUFFFFFLDDFDDDDDUDFULLLLLLBRFBBBBBB"},
+      {"name": "First two layers", "moves": "U' R U R U2 R U2 R' U' R2 U' R", "htm": 12, "ns": 87.8, "nodes": 1, "facelets": "BURUUULUBRBURRRRRRURUFFFFFFDDDDDDDDDUFFLLLLLLFLLBBBBBB"},
+      {"name": "Last layer (ZBLL)", "moves": "U L U2 L' U2 L' B L' F' L' F L' B'", "htm": 13, "ns": 32.3, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
     ]},
-    {"id": "min2phase", "name": "min2phase", "method": "Kociemba two-phase", "total_ns": 327541.0, "steps": [
-      {"name": "Two-phase search", "moves": "U' D L U L B L' F D F2 D L2 D' B2 D L2 B2 D2 R2 B2 U'", "htm": 21, "ns": 327541.0, "nodes": 3428, "facelets": null}
+    {"id": "min2phase", "name": "min2phase", "method": "Kociemba two-phase", "total_ns": 321666.0, "steps": [
+      {"name": "Two-phase search", "moves": "U' D L U L B L' F D F2 D L2 D' B2 D L2 B2 D2 R2 B2 U'", "htm": 21, "ns": 321666.0, "nodes": 3428, "facelets": null}
     ]},
-    {"id": "cfop", "name": "rcuber", "method": "CFOP", "total_ns": 813333.0, "steps": [
-      {"name": "Cross", "moves": "B R2 U' F2 L' B'", "htm": 6, "ns": 643546.9, "nodes": 354, "facelets": null},
-      {"name": "F2L", "moves": "R' U' R U' L' U2 L2 F' L' F B' U B R U2 R' B' U' B U2 R' U2 R2 B' R' B B' U B U' L U L' U2 L U' L'", "htm": 37, "ns": 157831.1, "nodes": 3050, "facelets": null},
-      {"name": "OLL", "moves": "U' R U R' U R' F R F' R U2 R'", "htm": 12, "ns": 6168.0, "nodes": 16, "facelets": null},
-      {"name": "PLL", "moves": "R U' R U R U R U' R' U' R2", "htm": 11, "ns": 2493.7, "nodes": 11, "facelets": null}
+    {"id": "cfop", "name": "rcuber", "method": "CFOP", "total_ns": 781333.0, "steps": [
+      {"name": "Cross", "moves": "B R2 U' F2 L' B'", "htm": 6, "ns": 603781.2, "nodes": 354, "facelets": null},
+      {"name": "F2L", "moves": "R' U' R U' L' U2 L2 F' L' F B' U B R U2 R' B' U' B U2 R' U2 R2 B' R' B B' U B U' L U L' U2 L U' L'", "htm": 37, "ns": 152716.5, "nodes": 3050, "facelets": null},
+      {"name": "OLL", "moves": "U' R U R' U R' F R F' R U2 R'", "htm": 12, "ns": 5943.1, "nodes": 16, "facelets": null},
+      {"name": "PLL", "moves": "R U' R U R U R U' R' U' R2", "htm": 11, "ns": 2363.4, "nodes": 11, "facelets": null}
     ]},
-    {"id": "roux", "name": "rcuber", "method": "Roux", "total_ns": 24653541.0, "steps": [
-      {"name": "First block", "moves": "M' D R F2 M2 F' B'", "htm": 9, "ns": 7960239.5, "nodes": 59980, "facelets": null},
-      {"name": "Second block", "moves": "Rw' U2 R2 U' R M U' R2 U2 R'", "htm": 11, "ns": 8018781.2, "nodes": 66860, "facelets": null},
-      {"name": "CMLL", "moves": "U U' R2 D R' U R D' R' U R' U' R U' R' U2", "htm": 16, "ns": 9118.7, "nodes": 118, "facelets": null},
-      {"name": "LSE", "moves": "U M U M U M U' M U' M U'", "htm": 16, "ns": 8986854.2, "nodes": 4390, "facelets": null}
+    {"id": "roux", "name": "rcuber", "method": "Roux", "total_ns": 23048500.0, "steps": [
+      {"name": "First block", "moves": "M' D R F2 M2 F' B'", "htm": 9, "ns": 7154031.2, "nodes": 59980, "facelets": null},
+      {"name": "Second block", "moves": "Rw' U2 R2 U' R M U' R2 U2 R'", "htm": 11, "ns": 7260302.0, "nodes": 66860, "facelets": null},
+      {"name": "CMLL", "moves": "U U' R2 D R' U R D' R' U R' U' R U' R' U2", "htm": 16, "ns": 8895.0, "nodes": 118, "facelets": null},
+      {"name": "LSE", "moves": "U M U M U M U' M U' M U'", "htm": 16, "ns": 8491000.0, "nodes": 4390, "facelets": null}
     ]}
   ]
 }

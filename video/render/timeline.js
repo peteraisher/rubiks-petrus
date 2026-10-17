@@ -6,8 +6,9 @@ import { CubeModel, parseSeq } from './cube.js';
 export const FPS = 60;
 /// Seconds of title before the clocks start.
 export const INTRO = 2.5;
-/// Least video seconds per move for petrus' searches, and for its
-/// last-layer table lookup (a quick burst: the speed never drops).
+/// Least video seconds per move for petrus' first four steps, and for its
+/// last-layer lookup, its quickest step (a quick burst: the speed never
+/// drops).
 const SEC_PER_MOVE_PETRUS = 0.17;
 const SEC_PER_MOVE_LOOKUP = 0.04;
 /// Petrus' stage lasts at most about this long (so the video stays short).

@@ -1,4 +1,5 @@
-//! Data for the solve video: one scramble solved by petrus (`fast`),
+//! Data for the solve video: one scramble solved by petrus (`fast`, its
+//! steps compiled into table lookups),
 //! min2phase, rcuber CFOP and rcuber Roux, with each step's moves, its time
 //! (median of many warm repeats on this machine, one thread) and, when built
 //! with the `count` feature, its search node count.
@@ -256,6 +257,8 @@ fn petrus_steps(t: &Tables, cube: &Cube) -> Vec<StepOut> {
     for (i, (name, f)) in searches.into_iter().enumerate() {
         let mut nodes = 0;
         let moves = f(t, &c, &mut nodes);
+        // a compiled step searches nothing: it is one table lookup
+        let nodes = nodes.max(1);
         assert_eq!(moves, sol.steps[i].moves, "step {name} differs from solve()");
         let ns = time_ns(|| {
             black_box(f(t, black_box(&c), &mut 0));

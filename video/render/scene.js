@@ -204,7 +204,7 @@ async function main() {
   document.getElementById('footer').innerHTML =
     `<b>*</b> min2phase (Kociemba's two-phase algorithm) finds much shorter solutions but is a computer method, not one a person can follow. ` +
     `CFOP and Roux: rcuber 0.7.20; min2phase 0.2.4 (Rust crates). Times: median of single solves of this scramble, each after 2 ms of solving other cubes. ` +
-    `Nodes: search states generated.`;
+    `Nodes: search states generated; for petrus, table lookups.`;
 
   const rows = order.map((id) => {
     const s = by[id];
@@ -217,8 +217,8 @@ async function main() {
     `<h2>Petrus: <em>${comma(rival.total / petrus.total)}× faster</em><br>than the next-fastest solver tested</h2>` +
     `<table><tr><th>SOLVER</th><th>TIME</th><th>MOVES</th><th>NODES</th></tr>${rows.join('')}</table>` +
     `<div class="note"><b>petrus</b> follows Lars Petrus' method: 2x2x2 block, 2x2x3 block, edge orientation, ` +
-    `first two layers with R and U only, then the whole last layer in one look. Each step is solved optimally ` +
-    `from compact pruning tables, with cube moves as ARM NEON table lookups.</div>` +
+    `first two layers with R and U only, then the whole last layer in one look. Each step's optimal solution ` +
+    `is one lookup in tables built at compile time, with cube moves as ARM NEON table lookups.</div>` +
     `<div class="note">* min2phase's ${by.min2phase.htm} moves are far fewer than any human method, at ${comma(by.min2phase.total / petrus.total)}× the time.</div>`;
 
   const hud = document.getElementById('hud');
