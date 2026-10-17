@@ -1,0 +1,31 @@
+[package]
+name = "thistle"
+version = "0.1.0"
+edition = "2021"
+description = "Fast Rubik's cube solver: Thistlethwaite's four phases compiled into lookup tables"
+license = "MIT"
+
+# Its own workspace: the petrus crate one level up is a plain dependency.
+[workspace]
+
+[dependencies]
+petrus = { path = ".." }
+
+[build-dependencies]
+petrus = { path = ".." }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = 1          # symbols for the profiler
+
+[profile.test]
+opt-level = 3
+
+# build.rs runs the table generation; keep it fast in every profile
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3

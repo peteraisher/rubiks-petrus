@@ -73,6 +73,30 @@ fn main() {
         report(name, &lens, t0.elapsed().as_secs_f64(), setup);
     }
 
+    // thistle: Thistlethwaite's phases compiled into lookup tables (this repo)
+    let t0 = Instant::now();
+    let tt = thistle::solver::Tables::new();
+    let setup = t0.elapsed().as_secs_f64();
+    for c in &cubes {
+        std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::SHORTEST));
+        // the single chains read their own tables
+        std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::FAST));
+        std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::FAST6));
+    }
+    for name in ["fast", "fast6", "short", "shorter", "shortest"] {
+        let opts = thistle::solver::Options::preset(name).unwrap();
+        let t0 = Instant::now();
+        let lens: Vec<usize> = cubes
+            .iter()
+            .map(|c| {
+                let s = thistle::solver::solve(&tt, c, &opts);
+                assert!(c.apply_seq(s.moves.as_slice()).is_solved());
+                s.moves.len()
+            })
+            .collect();
+        report(&format!("thistle {name}"), &lens, t0.elapsed().as_secs_f64(), setup);
+    }
+
     // min2phase: first call builds its tables
     let t0 = Instant::now();
     let _ = min2phase::solve(&facelets[0], MIN2PHASE_TARGETS[0]);

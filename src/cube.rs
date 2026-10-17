@@ -587,6 +587,14 @@ impl<const N: usize> Default for Moves<N> {
 }
 
 impl<const N: usize> Moves<N> {
+    /// The first `len` moves of `m` (the rest are kept but unused): a
+    /// fixed-size copy, with no branch on the length.
+    #[inline(always)]
+    pub fn from_array(m: [u8; N], len: usize) -> Self {
+        assert!(len <= N);
+        Moves { len: len as u8, m }
+    }
+
     pub fn from_slice(s: &[u8]) -> Self {
         let mut r = Self::default();
         r.m[..s.len()].copy_from_slice(s);

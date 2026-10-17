@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 petrus = { path = ".." }
 min2phase = "=0.2.4"
+thistle = { path = "../thistle" }
 rcuber = { version = "=0.7.20", default-features = false }
 
 [profile.release]
