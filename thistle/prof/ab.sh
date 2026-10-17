@@ -5,11 +5,13 @@
 # A revision is anything `git rev-parse` takes, or `.` for the working tree.
 # Each is built (in a worktree under target/ab) with this tree's
 # examples/abtime.rs, so both run the same harness; prints per-preset minima
-# and medians (ns per solve).
+# and medians (ns per solve). EXAMPLE=abbatch times batches instead (both
+# revisions need `solve_batch`).
 set -e
 command -v cargo >/dev/null || . "$HOME/.cargo/env"
 cd "$(dirname "$0")/.."
 CRATE=$(pwd)
+EXAMPLE=${EXAMPLE:-abtime}
 A=$1; B=$2; ROUNDS=${3:-15}; N=${4:-20000}
 shift 4 2>/dev/null || shift $#
 PRESETS=${*:-fast short shorter}
@@ -26,10 +28,10 @@ for v in A B; do
         git -C "$REPO" worktree remove --force "$tree" 2>/dev/null || true
         git -C "$REPO" worktree add -q --detach "$tree" "$rev"
         dir=$tree/$SUB
-        cp "$CRATE/examples/abtime.rs" "$dir/examples/abtime.rs"
+        cp "$CRATE/examples/$EXAMPLE.rs" "$dir/examples/$EXAMPLE.rs"
     fi
-    (cd "$dir" && cargo build -q --release --example abtime)
-    cp "$dir/target/release/examples/abtime" "$OUT/abtime_$v"
+    (cd "$dir" && cargo build -q --release --example "$EXAMPLE")
+    cp "$dir/target/release/examples/$EXAMPLE" "$OUT/abtime_$v"
     [ "$rev" = . ] || git -C "$REPO" worktree remove --force "$OUT/tree_$v"
 done
 : > "$OUT/A.txt"

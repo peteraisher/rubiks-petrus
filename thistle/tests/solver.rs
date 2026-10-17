@@ -208,6 +208,35 @@ fn chains_merge_like_the_reference_on_many_states() {
     }
 }
 
+/// Batches solve each cube as `solve` does, merging one by one or in lanes.
+#[test]
+fn batches_solve_like_single_solves() {
+    const STATES: usize = 48_000;
+    let t = tables();
+    let mut rng = Rng::new(29);
+    let cubes: Vec<Cube> = (0..STATES).map(|_| Cube::random(&mut rng)).collect();
+    for o in [Options::FAST, Options::FAST5, Options::FAST6] {
+        let want: Vec<Seq> = cubes.iter().map(|c| solve(t, c, &o).moves).collect();
+        check_batches::<1>(t, &cubes, &o, &want);
+        check_batches::<3>(t, &cubes, &o, &want);
+        check_batches::<8>(t, &cubes, &o, &want);
+        check_batches::<16>(t, &cubes, &o, &want);
+    }
+    let short: Vec<Seq> = cubes[..SAMPLES].iter().map(|c| solve(t, c, &Options::SHORT).moves).collect();
+    check_batches::<4>(t, &cubes[..SAMPLES], &Options::SHORT, &short);
+}
+
+fn check_batches<const K: usize>(t: &Tables, cubes: &[Cube], o: &Options, want: &[Seq]) {
+    for (c, w) in cubes.as_chunks::<K>().0.iter().zip(want.as_chunks::<K>().0) {
+        let one_by_one = solve_batch_merging::<K, false>(t, c, o);
+        let lanes = solve_batch_merging::<K, true>(t, c, o);
+        for i in 0..K {
+            assert_eq!(one_by_one[i].moves.as_slice(), w[i].as_slice(), "{K} one by one, {i}");
+            assert_eq!(lanes[i].moves.as_slice(), w[i].as_slice(), "{K} in lanes, {i}");
+        }
+    }
+}
+
 #[test]
 fn chain_phases_one_at_a_time_are_fast() {
     let t = tables();

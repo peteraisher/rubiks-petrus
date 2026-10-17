@@ -22,6 +22,10 @@ fn main() {
     }
     let mut rng = Rng::new(SEED);
     let cubes: Vec<Cube> = (0..n).map(|_| Cube::random(&mut rng)).collect();
+    // the first timed pass otherwise runs measurably slower
+    for c in &cubes {
+        std::hint::black_box(solve(&t, c, &Options::FAST));
+    }
     for name in &args[1..] {
         let o = Options::preset(name).expect("preset");
         let t0 = Instant::now();

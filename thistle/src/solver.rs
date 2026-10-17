@@ -5,7 +5,7 @@
 //! alternatives (`beam`).
 
 use crate::beam::solve_beam;
-use crate::chain::solve_chain;
+use crate::chain::{solve_chain, solve_chains};
 use crate::coord::*;
 use petrus::cube::*;
 use petrus::facelet::{NSYM, SYM_MOVE};
@@ -140,4 +140,30 @@ pub fn solve(t: &Tables, cube: &Cube, opts: &Options) -> Solution {
         };
     }
     solve_beam(t, cube, &o)
+}
+
+/// `solve` for `K` cubes at once. The single chain interleaves them phase by
+/// phase, for throughput; the beam solves them one by one.
+pub fn solve_batch<const K: usize>(t: &Tables, cubes: &[Cube; K], opts: &Options) -> [Solution; K] {
+    solve_batch_merging::<K, false>(t, cubes, opts)
+}
+
+/// `solve_batch`, merging turns in NEON lanes or not (`K` at most 16 with
+/// `LANE_MERGE`), for comparing the two.
+#[doc(hidden)]
+pub fn solve_batch_merging<const K: usize, const LANE_MERGE: bool>(
+    t: &Tables,
+    cubes: &[Cube; K],
+    opts: &Options,
+) -> [Solution; K] {
+    let o = opts.clamped();
+    if o.starts == 1 && o.width == 1 && o.alts.iter().all(|&a| a == 1) {
+        return match (o.split.phase2, o.split.phase4) {
+            (false, false) => solve_chains::<K, false, false, LANE_MERGE>(t, cubes),
+            (true, false) => solve_chains::<K, true, false, LANE_MERGE>(t, cubes),
+            (false, true) => solve_chains::<K, false, true, LANE_MERGE>(t, cubes),
+            (true, true) => solve_chains::<K, true, true, LANE_MERGE>(t, cubes),
+        };
+    }
+    cubes.map(|c| solve_beam(t, &c, &o))
 }
