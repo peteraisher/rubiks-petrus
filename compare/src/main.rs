@@ -81,9 +81,10 @@ fn main() {
         std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::SHORTEST));
         // the single chains read their own tables
         std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::FAST));
+        std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::FAST5));
         std::hint::black_box(thistle::solver::solve(&tt, c, &thistle::solver::Options::FAST6));
     }
-    for name in ["fast", "fast6", "short", "shorter", "shortest"] {
+    for name in ["fast", "fast5", "fast6", "short", "shorter", "shortest"] {
         let opts = thistle::solver::Options::preset(name).unwrap();
         let t0 = Instant::now();
         let lens: Vec<usize> = cubes

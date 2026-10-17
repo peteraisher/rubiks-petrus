@@ -18,6 +18,7 @@ fn main() {
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
     let write = |name: &str, bytes: Vec<u8>| std::fs::write(out.join(format!("{name}.bin")), bytes).unwrap();
+    write("join", gen::join_table());
     let (class, g3) = gen::corner_tables();
     write("class", class.clone());
     write("g3", g3.clone());
@@ -28,15 +29,19 @@ fn main() {
         let (dist, reps) = gen::bfs(&ct, ph);
         assert_eq!(*dist.iter().max().unwrap() as usize, PHASE_MAX_LEN[i], "phase {} diameter", i + 1);
         // phase 1 is small enough to store whole; the others by symmetry class
-        let cases: Vec<usize> = if i == 0 {
-            (0..ph.n).collect()
-        } else {
-            let red = gen::reduce(&ct, ph, i, &reps);
-            write(&format!("minor{}", i + 1), words(&red.minor_sym));
-            write(&format!("major{}", i + 1), words(&red.major_conj));
-            gen::reduced_cases(i, &red)
+        let red = (i > 0).then(|| gen::reduce(&ct, ph, i, &reps));
+        let cases: Vec<usize> = match &red {
+            None => (0..ph.n).collect(),
+            Some(red) => {
+                write(&format!("minor{}", i + 1), words(&red.minor_sym));
+                write(&format!("major{}", i + 1), words(&red.major_conj));
+                gen::reduced_cases(i, red)
+            }
         };
         let algs = gen::algorithms(&ct, ph, MOVE_BITS[i], &dist, &reps, MAX_ALTS[i], threads, &cases);
+        if COMPOSED[i] {
+            write(&format!("comp{}", i + 1), gen::composed(i, ph.n, &algs, red.as_ref()));
+        }
         write(&format!("dist{}", i + 1), dist.clone());
         dists.push(dist);
         all_reps.push(reps);
@@ -50,5 +55,8 @@ fn main() {
     }
     for (h, algs) in gen::split_algorithms(&ct, &dists, &all_reps).iter().enumerate() {
         write(&format!("half{}", h + 1), algs.iter().flat_map(|x| x.to_le_bytes()).collect());
+        if HALF_COMPOSED[h] {
+            write(&format!("hcomp{}", h + 1), gen::composed_half(h, algs));
+        }
     }
 }

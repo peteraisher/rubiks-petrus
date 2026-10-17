@@ -210,9 +210,10 @@ the same 1000 random states, one thread, same machine:
 | petrus `neutral` | + best of 48 orientations | 38.1 | 2.3 µs |
 | petrus `short` | + beam search | 30.2 | 163 µs |
 | petrus `shortest` | + wider beam | 28.3 | 722 µs |
-| [thistle](thistle/) `fast` (this repo)* | Thistlethwaite, phases as table lookups | 31.0 | 0.2 µs |
-| thistle `fast6`* | six phases, every table in L2 | 38.2 | 0.2 µs |
-| thistle `short`* | + beam over starts and stored alternatives | 25.6 | 1.1 µs |
+| [thistle](thistle/) `fast` (this repo)* | Thistlethwaite, phases as table lookups | 31.0 | 0.13 µs |
+| thistle `fast5`* | five phases, each applied by one lookup | 35.1 | 0.08 µs |
+| thistle `fast6`* | six phases, every table in L2 | 38.2 | 0.10 µs |
+| thistle `short`* | + beam over starts and stored alternatives | 25.6 | 1.2 µs |
 | thistle `shorter`* | wider beam | 24.1 | 2.3 µs |
 | thistle `shortest`* | widest beam | 22.7 | 10 µs |
 | [min2phase](https://crates.io/crates/min2phase) 0.2.4, target 21 | Kociemba two-phase | 20.6 | 700 µs |
@@ -221,10 +222,14 @@ the same 1000 random states, one thread, same machine:
 | [rcuber](https://crates.io/crates/rcuber) 0.7.20 CFOP | method solver | 65.9 | 2.5 ms |
 | rcuber Roux | method solver | 47.4 | 25.6 ms |
 
-\* measured in a separate run under background load; interleaved in one
-process with petrus as it is now, thistle `fast` takes 147 ns against
-petrus `fast`'s 435, and thistle `shorter` 2.3 µs against petrus
-`neutral`'s 1.9 (see its README).
+\* timed in steady state in a separate run under background load,
+interleaved in one process with petrus as it is now
+(`thistle/examples/compiled_petrus.rs`): thistle `fast` takes 126 ns,
+`fast5` 84 and `fast6` 95 against petrus `fast`'s 435, and thistle
+`shorter` 2.3 µs against petrus `neutral`'s 1.9 (see its README). This
+table's own run of 1000 states, with thistle's tables still paging in and
+every solution checked inside the timing, gives 0.2-0.3 µs for the three
+chains.
 
 Against other method-based solvers, the actual peers, petrus is roughly
 700x (HARCS) to 50 000x (rcuber Roux) faster and gives shorter solutions in
@@ -251,12 +256,14 @@ seconds per cube with gigabyte tables.
 optimised the same way. Every step of a method can be compiled into a table
 of optimal algorithms per case; that is where petrus' compiled steps came
 from. Compared that way, Thistlethwaite's four phases beat Petrus' five:
-31 moves instead of 39, in under 150 ns per solve against 435 (one thread,
-distinct cubes), with no branch in its chain that depends on the cube. With
-a beam over 12 starting orientations and stored alternative algorithms it
-gives 24 moves in about petrus `neutral`'s time. See its README for the
-method comparison, the five- and six-phase variants, first-solve latency,
-design and measurements.
+31 moves instead of 39, in ~125 ns per solve against 435 (one thread,
+distinct cubes; ~85 ns with its tables to itself), with no branch in its
+chain that depends on the cube. Its five-phase variant takes 84 ns for 35
+moves, and solving cubes in batches of 8 (`solve_batch`) brings that to
+40 ns a cube. With a beam over 12 starting orientations and stored
+alternative algorithms it gives 24 moves in about petrus `neutral`'s time.
+See its README for the method comparison, the five- and six-phase
+variants, batches, first-solve latency, design and measurements.
 
 ## Usage
 

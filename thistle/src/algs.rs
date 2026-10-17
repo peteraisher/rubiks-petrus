@@ -6,8 +6,6 @@ use crate::coord::*;
 use petrus::cube::*;
 use petrus::facelet::SYM_MOVE;
 
-const PHASE_MOVES: [&[u8]; N_PHASES] = [&MOVES1, &MOVES2, &MOVES3, &MOVES4];
-
 /// Each phase's move slots mapped through each of its symmetries.
 static SLOT_MOVE: [[[u8; NMOVES]; MAX_SYMS]; N_PHASES] = {
     let mut t = [[[0u8; NMOVES]; MAX_SYMS]; N_PHASES];

@@ -26,6 +26,21 @@ static FIRST: [&[u8]; N_PHASES] = [embedded!("first1"), embedded!("first2"), emb
 static HALVES: [&[u8]; N_HALVES] = [embedded!("half1"), embedded!("half2"), embedded!("half3"), embedded!("half4")];
 static MINOR_SYM: [&[u8]; N_PHASES] = [&[], embedded!("minor2"), embedded!("minor3"), embedded!("minor4")];
 static MAJOR_CONJ: [&[u8]; N_PHASES] = [&[], embedded!("major2"), embedded!("major3"), embedded!("major4")];
+/// Each case's first algorithm as one permutation, for the `COMPOSED` phases.
+static COMPOSITE: [&[u8]; N_PHASES] = [embedded!("comp1"), &[], embedded!("comp3"), &[]];
+static HALF_COMPOSITE: [&[u8]; N_HALVES] = [embedded!("hcomp1"), embedded!("hcomp2"), embedded!("hcomp3"), &[]];
+
+static JOIN: &[u8] = embedded!("join");
+
+/// The join table's entry `i` (see [`JOIN_SIZE`]).
+#[inline(always)]
+pub(crate) fn join(i: usize) -> u32 {
+    const WORD: usize = std::mem::size_of::<u32>();
+    debug_assert!(i < JOIN_SIZE && JOIN.len() == JOIN_SIZE * WORD);
+    // SAFETY: indices come from `join_index`, below JOIN_SIZE, and the table
+    // holds JOIN_SIZE words (checked in `Tables::new`)
+    u32::from_le_bytes(unsafe { *JOIN.as_ptr().add(i * WORD).cast::<[u8; WORD]>() })
+}
 
 /// Reinterpret embedded little-endian bytes as words (the data is aligned).
 fn words<T: Copy>(b: &'static [u8]) -> &'static [T] {
@@ -62,6 +77,8 @@ pub struct Tables {
     halves: [&'static [u64]; N_HALVES],
     minor_sym: [&'static [u16]; N_PHASES],
     major_conj: [&'static [u16]; N_PHASES],
+    composite: [&'static [LaneTables]; N_PHASES],
+    half_composite: [&'static [LaneTables]; N_HALVES],
 }
 
 impl Tables {
@@ -74,6 +91,8 @@ impl Tables {
             halves: HALVES.map(words),
             minor_sym: MINOR_SYM.map(words),
             major_conj: MAJOR_CONJ.map(words),
+            composite: COMPOSITE.map(words),
+            half_composite: HALF_COMPOSITE.map(words),
         };
         for p in 0..N_PHASES {
             assert_eq!(t.dist[p].len(), PHASE_SIZES[p]);
@@ -84,9 +103,12 @@ impl Tables {
                 assert_eq!(t.algs[p].len(), classes * MAJOR[p] * MAX_ALTS[p]);
             }
             assert_eq!(t.first[p].len() * MAX_ALTS[p], t.algs[p].len());
+            assert_eq!(t.composite[p].len(), if COMPOSED[p] { PHASE_SIZES[p] } else { 0 });
         }
+        assert_eq!(JOIN.len(), JOIN_SIZE * std::mem::size_of::<u32>());
         for h in 0..N_HALVES {
             assert_eq!(t.halves[h].len(), HALF_SIZES[h]);
+            assert_eq!(t.half_composite[h].len(), if HALF_COMPOSED[h] { HALF_SIZES[h] } else { 0 });
         }
         t
     }
@@ -139,6 +161,23 @@ impl Tables {
         unsafe { *self.first[P].get_unchecked(r) }
     }
 
+    /// Case `i`'s first algorithm composed into one permutation (phase `P`
+    /// in `COMPOSED`).
+    #[inline(always)]
+    pub(crate) fn composite<const P: usize>(&self, i: usize) -> &LaneTables {
+        debug_assert!(COMPOSED[P] && i < PHASE_SIZES[P]);
+        // SAFETY: case indices stay below PHASE_SIZES[P], the table's length
+        unsafe { self.composite[P].get_unchecked(i) }
+    }
+
+    /// Split half `H`'s algorithm for case `k` as one permutation.
+    #[inline(always)]
+    pub(crate) fn half_composite<const H: usize>(&self, k: usize) -> &LaneTables {
+        debug_assert!(HALF_COMPOSED[H] && k < HALF_SIZES[H]);
+        // SAFETY: the half's coordinate stays below its size, the table's length
+        unsafe { self.half_composite[H].get_unchecked(k) }
+    }
+
     /// Split half `H`'s case of `c` (see [`N_HALVES`]).
     #[inline(always)]
     pub(crate) fn half_case<const H: usize>(&self, c: &Cube) -> usize {
@@ -178,6 +217,17 @@ impl Tables {
     /// tables as embedded (for tests).
     pub fn raw(&self, p: usize) -> (&[u8], &[u64], &[u16], &[u16]) {
         (self.dist[p], self.algs[p], self.minor_sym[p], self.major_conj[p])
+    }
+
+    /// Phase `p`'s and split half `h`'s composed algorithms as embedded
+    /// (for tests; empty where not composed).
+    pub fn raw_composite(&self, p: usize, h: usize) -> (&[u8], &[u8]) {
+        (self.composite[p].as_flattened().as_flattened(), self.half_composite[h].as_flattened().as_flattened())
+    }
+
+    /// The join table as embedded (for tests).
+    pub fn raw_join(&self) -> &[u8] {
+        JOIN
     }
 
     /// Split half `h`'s table as embedded (for tests).

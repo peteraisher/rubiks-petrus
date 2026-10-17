@@ -4,7 +4,7 @@
 
 use crate::algs::{alg_moves, apply_padded, pad_identity, pairs};
 use crate::coord::*;
-use crate::merge::{append_lanes, Out};
+use crate::merge::Out;
 use crate::solver::Solution;
 use crate::tables::Tables;
 use petrus::cube::*;
@@ -34,13 +34,15 @@ fn join<const P: usize>(s: Step, out: &mut Out) -> u8 {
     s.n as u8
 }
 
-/// Phase `P` of the chain on its own: its moves and the cube after them.
-fn lone_phase<const P: usize, const PAIRS: usize>(t: &Tables, c: &Cube) -> (Moves<LANES>, Cube) {
-    let (r, sym) = t.row_of::<P>(t.index::<P>(c));
-    let a = t.first::<P>(r);
-    let n = alg_len(a);
-    let moves = pad_identity(alg_moves::<P>(a, sym), n);
-    (Moves::from_array(moves, n), apply_padded::<PAIRS>(c, &moves))
+/// Phase `P` of the chain on its own: its moves and the cube after them
+/// (applied in the last phase too).
+fn lone_phase<const P: usize>(t: &Tables, c: &Cube) -> (Moves<LANES>, Cube) {
+    let mut x = *c;
+    let s = phase_step::<P>(t, &mut x);
+    if P == LAST {
+        x = apply_padded::<{ pairs(PHASE_MAX_LEN[LAST]) }>(&x, &s.moves);
+    }
+    (Moves::from_array(s.moves, s.n), x)
 }
 
 /// Phase `p` (0-based) of `fast`'s chain on its own, for tools that time
@@ -48,10 +50,10 @@ fn lone_phase<const P: usize, const PAIRS: usize>(t: &Tables, c: &Cube) -> (Move
 /// it. `c` must be in the phase's starting group (through phases `..p`).
 pub fn chain_phase(t: &Tables, p: usize, c: &Cube) -> (Moves<LANES>, Cube) {
     match p {
-        0 => lone_phase::<0, { pairs(PHASE_MAX_LEN[0]) }>(t, c),
-        1 => lone_phase::<1, { pairs(PHASE_MAX_LEN[1]) }>(t, c),
-        2 => lone_phase::<2, { pairs(PHASE_MAX_LEN[2]) }>(t, c),
-        _ => lone_phase::<LAST, { pairs(PHASE_MAX_LEN[LAST]) }>(t, c),
+        0 => lone_phase::<0>(t, c),
+        1 => lone_phase::<1>(t, c),
+        2 => lone_phase::<2>(t, c),
+        _ => lone_phase::<LAST>(t, c),
     }
 }
 
@@ -100,8 +102,15 @@ struct Step {
 /// Phase `P`'s step: look up the case's first algorithm and take it.
 #[inline(always)]
 fn phase_step<const P: usize>(t: &Tables, x: &mut Cube) -> Step {
-    let (r, sym) = t.row_of::<P>(t.index::<P>(x));
+    let i = t.index::<P>(x);
+    let (r, sym) = t.row_of::<P>(i);
     let a = t.first::<P>(r);
+    if COMPOSED[P] {
+        // the next phase waits on this lookup only, not on the algorithm
+        let s = take::<P, 0>(x, a, sym);
+        *x = x.apply_tables(t.composite::<P>(i));
+        return s;
+    }
     match P {
         0 => take::<P, { pairs(PHASE_MAX_LEN[0]) }>(x, a, sym),
         1 => take::<P, { pairs(PHASE_MAX_LEN[1]) }>(x, a, sym),
@@ -114,7 +123,13 @@ fn phase_step<const P: usize>(t: &Tables, x: &mut Cube) -> Step {
 #[inline(always)]
 fn half_step<const H: usize, const P: usize>(t: &Tables, x: &mut Cube) -> Step {
     debug_assert!(HALF_PHASE[H] == P);
-    let a = t.half::<H>(t.half_case::<H>(x));
+    let k = t.half_case::<H>(x);
+    let a = t.half::<H>(k);
+    if HALF_COMPOSED[H] {
+        let s = take::<P, 0>(x, a, 0);
+        *x = x.apply_tables(t.half_composite::<H>(k));
+        return s;
+    }
     match H {
         HALF_SLICE => take::<P, { pairs(HALF_MAX_LEN[HALF_SLICE]) }>(x, a, 0),
         HALF_TWIST => take::<P, { pairs(HALF_MAX_LEN[HALF_TWIST]) }>(x, a, 0),
@@ -127,24 +142,18 @@ fn half_step<const H: usize, const P: usize>(t: &Tables, x: &mut Cube) -> Step {
 
 /// `chains`, not inlined into the caller.
 #[inline(never)]
-pub(crate) fn solve_chains<const K: usize, const S2: bool, const S4: bool, const LANE_MERGE: bool>(
+pub(crate) fn solve_chains<const K: usize, const S2: bool, const S4: bool>(
     t: &Tables,
     cubes: &[Cube; K],
 ) -> [Solution; K] {
-    chains::<K, S2, S4, LANE_MERGE>(t, cubes)
+    chains::<K, S2, S4>(t, cubes)
 }
 
 /// `K` chains at once, interleaved phase by phase: the cubes' lookups are
 /// independent, so each phase's `K` table loads are in flight together.
-/// With `LANE_MERGE` the solutions are merged in NEON lanes (`K` at most
-/// 16), otherwise one by one.
 #[inline(always)]
-fn chains<const K: usize, const S2: bool, const S4: bool, const LANE_MERGE: bool>(
-    t: &Tables,
-    cubes: &[Cube; K],
-) -> [Solution; K] {
-    let mut c =
-        Chains::<K, LANE_MERGE> { x: *cubes, out: std::array::from_fn(|_| Out::new()), lens: [[0; N_PHASES]; K] };
+fn chains<const K: usize, const S2: bool, const S4: bool>(t: &Tables, cubes: &[Cube; K]) -> [Solution; K] {
+    let mut c = Chains::<K> { x: *cubes, out: std::array::from_fn(|_| Out::new()), lens: [[0; N_PHASES]; K] };
     c.next(0, |x| phase_step::<0>(t, x));
     if S2 {
         c.next(PHASE_2, |x| half_step::<HALF_SLICE, PHASE_2>(t, x));
@@ -164,13 +173,13 @@ fn chains<const K: usize, const S2: bool, const S4: bool, const LANE_MERGE: bool
 }
 
 /// `K` chains in progress.
-struct Chains<const K: usize, const LANE_MERGE: bool> {
+struct Chains<const K: usize> {
     x: [Cube; K],
     out: [Out; K],
     lens: [[u8; N_PHASES]; K],
 }
 
-impl<const K: usize, const LANE_MERGE: bool> Chains<K, LANE_MERGE> {
+impl<const K: usize> Chains<K> {
     /// Take `step` (of phase `p`) on every cube, then join each solution
     /// (the first phase starts it).
     #[inline(always)]
@@ -182,14 +191,10 @@ impl<const K: usize, const LANE_MERGE: bool> Chains<K, LANE_MERGE> {
             (moves[i], n[i]) = (s.moves, s.n);
             self.lens[i][p] += s.n as u8;
         }
-        if p == 0 {
-            for i in 0..K {
+        for i in 0..K {
+            if p == 0 {
                 self.out[i].start(moves[i], n[i]);
-            }
-        } else if LANE_MERGE {
-            append_lanes(&mut self.out, &moves, &n);
-        } else {
-            for i in 0..K {
+            } else {
                 self.out[i].append(moves[i], n[i]);
             }
         }

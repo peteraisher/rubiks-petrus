@@ -71,11 +71,19 @@ fn embedded_tables_match_fresh_generation() {
         };
         let algs = gen::algorithms(&ct, ph, MOVE_BITS[p], &dist, &reps, MAX_ALTS[p], threads, &cases);
         assert!(e_algs == algs.as_slice(), "phase {} algorithms", p + 1);
+        if COMPOSED[p] {
+            let red = (p > 0).then(|| gen::reduce(&ct, ph, p, &reps));
+            let composed = gen::composed(p, ph.n, &algs, red.as_ref());
+            assert!(t.raw_composite(p, 0).0 == composed.as_slice(), "phase {} composed", p + 1);
+        }
         dists.push(dist);
         all_reps.push(reps);
     }
     for (h, algs) in gen::split_algorithms(&ct, &dists, &all_reps).iter().enumerate() {
         assert!(t.raw_half(h) == algs.as_slice(), "split half {} algorithms", h + 1);
+        if HALF_COMPOSED[h] {
+            assert!(t.raw_composite(0, h).1 == gen::composed_half(h, algs).as_slice(), "split half {} composed", h + 1);
+        }
     }
 }
 
@@ -208,7 +216,57 @@ fn chains_merge_like_the_reference_on_many_states() {
     }
 }
 
-/// Batches solve each cube as `solve` does, merging one by one or in lanes.
+/// The join table is as generated, and each entry that is not cold merges
+/// exactly as the reference does: whatever moves came before, and whatever
+/// third move a canonical algorithm continues with.
+#[test]
+fn join_table_merges_like_the_reference() {
+    let t = tables();
+    let table = gen::join_table();
+    assert!(t.raw_join() == table.as_slice());
+    let none = NMOVES as u8;
+    let all: Vec<u8> = (0..=none).collect();
+    let (mut checked, mut cold) = (0, 0);
+    let quads = all.iter().flat_map(|&a2| all.iter().map(move |&a1| (a2, a1)));
+    let quads: Vec<(u8, u8, u8, u8)> =
+        quads.flat_map(|(a2, a1)| all.iter().flat_map(move |&m0| (0..=none).map(move |m1| (a2, a1, m0, m1)))).collect();
+    for (a2, a1, m0, m1) in quads {
+        // histories end at a barrier, algorithms are canonical and padded
+        if (a1 == none && a2 != none) || (m0 == none && m1 != none) {
+            continue;
+        }
+        if m0 != none && m1 != none && !gen::allowed(face(m0), face(m1)) {
+            continue;
+        }
+        let e = u32::from_le_bytes(table[4 * join_index(a2, a1, m0, m1)..][..4].try_into().unwrap());
+        if e & JOIN_COLD != 0 {
+            cold += 1;
+            continue;
+        }
+        let field = |at: u32| (e >> at & JOIN_FIELD) as usize;
+        let (drop, replace, taken) = (field(JOIN_DROP), field(JOIN_REPLACE), field(JOIN_TAKEN));
+        let earlier: &[u8] = if a2 == none { &[none] } else { &all };
+        for &a3 in earlier {
+            let hist: Vec<u8> = [a3, a2, a1].into_iter().filter(|&m| m != none).collect();
+            for &m2 in &all {
+                if m2 != none && (m1 == none || !gen::allowed(face(m1), face(m2))) {
+                    continue;
+                }
+                let alg: Vec<u8> = [m0, m1, m2].into_iter().filter(|&m| m != none).collect();
+                let mut want = hist.clone();
+                seq_append(&mut want, &alg);
+                let mut got = hist[..hist.len() - drop].to_vec();
+                got.extend(&e.to_le_bytes()[..replace]);
+                got.extend(&alg[taken..]);
+                assert_eq!(got, want, "{a3} {a2} {a1} + {m0} {m1} {m2}");
+                checked += 1;
+            }
+        }
+    }
+    assert!(cold * 10 < checked, "{cold} cold");
+}
+
+/// Batches solve each cube as `solve` does.
 #[test]
 fn batches_solve_like_single_solves() {
     const STATES: usize = 48_000;
@@ -228,11 +286,9 @@ fn batches_solve_like_single_solves() {
 
 fn check_batches<const K: usize>(t: &Tables, cubes: &[Cube], o: &Options, want: &[Seq]) {
     for (c, w) in cubes.as_chunks::<K>().0.iter().zip(want.as_chunks::<K>().0) {
-        let one_by_one = solve_batch_merging::<K, false>(t, c, o);
-        let lanes = solve_batch_merging::<K, true>(t, c, o);
+        let got = solve_batch::<K>(t, c, o);
         for i in 0..K {
-            assert_eq!(one_by_one[i].moves.as_slice(), w[i].as_slice(), "{K} one by one, {i}");
-            assert_eq!(lanes[i].moves.as_slice(), w[i].as_slice(), "{K} in lanes, {i}");
+            assert_eq!(got[i].moves.as_slice(), w[i].as_slice(), "batch of {K}, cube {i}");
         }
     }
 }

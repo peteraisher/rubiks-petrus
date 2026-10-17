@@ -10,6 +10,7 @@
 
 use crate::coord::*;
 use petrus::cube::*;
+use petrus::facelet::SYM_MOVE;
 
 pub const UNSEEN: u8 = u8::MAX;
 /// Previous-face states for canonical sequences: each face, or none yet.
@@ -406,4 +407,123 @@ pub fn reduce(ct: &CornerTables, ph: &PhaseDef, p: usize, reps: &[Cube]) -> Redu
 /// each class representative, class by class.
 pub fn reduced_cases(p: usize, red: &Reduction) -> Vec<usize> {
     red.classes.iter().flat_map(|&m| (0..MAJOR[p]).map(move |major| major * MINOR[p] + m)).collect()
+}
+
+/// Phase `p`'s first algorithm for each of its `n` cases, mapped back
+/// through the case's symmetry as the solver does (`Tables::row_of`), and
+/// composed into one permutation: lane tables, 64 bytes per case.
+pub fn composed(p: usize, n: usize, algs: &[u64], red: Option<&Reduction>) -> Vec<u8> {
+    let mut out = Vec::with_capacity(n * std::mem::size_of::<LaneTables>());
+    for i in 0..n {
+        let (row, sym) = match red {
+            None => (i, 0),
+            Some(red) => {
+                let (minor, major) = (i % MINOR[p], i / MINOR[p]);
+                let ms = red.minor_sym[minor] as usize;
+                let sym = ms & (MAX_SYMS - 1);
+                ((ms >> SYM_BITS) * MAJOR[p] + red.major_conj[sym * MAJOR[p] + major] as usize, sym)
+            }
+        };
+        out.extend(composite(p, algs[row * MAX_ALTS[p]], sym).as_flattened());
+    }
+    out
+}
+
+/// A split half's algorithms (see [`N_HALVES`]) composed as `composed`.
+pub fn composed_half(h: usize, algs: &[u64]) -> Vec<u8> {
+    algs.iter().flat_map(|&a| composite(HALF_PHASE[h], a, 0).into_iter().flatten()).collect()
+}
+
+/// Phase `p`'s algorithm `a`, mapped through phase symmetry `sym`, as one
+/// permutation.
+fn composite(p: usize, a: u64, sym: usize) -> LaneTables {
+    let mut k = Cubie::SOLVED;
+    for j in 0..alg_len(a) {
+        let slot = alg_slot(a, MOVE_BITS[p], j);
+        k = k.mul(&MOVE_CUBIE[SYM_MOVE[PHASE_SYMS[p][sym] as usize][PHASE_MOVES[p][slot] as usize] as usize]);
+    }
+    lane_tables(&k)
+}
+
+// ------------------------------------------------------------- the join table
+
+/// The join table (see [`JOIN_SIZE`]): each entry from merging two moves
+/// into a solution ending in two, as petrus' `Moves::push_merged` would.
+/// The solution's earlier moves are unknown; an entry whose result depends
+/// on them, or after which a third move could still merge (the second
+/// merged), is flagged cold.
+pub fn join_table() -> Vec<u8> {
+    let none = NMOVES as u8;
+    let mut out = Vec::with_capacity(JOIN_SIZE * std::mem::size_of::<u32>());
+    for i in 0..JOIN_SIZE {
+        // the index's digits, last first (see `join_index`)
+        let mut x = i;
+        let mut digit = || {
+            let d = (x % JOIN_VALUES) as u8;
+            x /= JOIN_VALUES;
+            d
+        };
+        let (m1, m0, a1, a2) = (digit(), digit(), digit(), digit());
+        out.extend(join_entry(a2, a1, m0, m1, none).to_le_bytes());
+    }
+    out
+}
+
+const QUARTERS: u8 = 4;
+
+fn join_entry(a2: u8, a1: u8, m0: u8, m1: u8, none: u8) -> u32 {
+    // the known history, last move last; NO_MOVE marks its start, so a
+    // history of two may have unknown moves before it
+    let hist: Vec<u8> = match (a2 == none, a1 == none) {
+        (_, true) => vec![],
+        (true, false) => vec![a1],
+        (false, false) => vec![a2, a1],
+    };
+    let unknown_before = hist.len() == 2;
+    let mut q = hist.clone();
+    let mut cold = false;
+    let mut second_joined = false;
+    for (j, &m) in [m0, m1].iter().enumerate() {
+        if m == none {
+            continue;
+        }
+        let n = q.len();
+        let f = face(m);
+        // reading past the known history needs the unknown moves
+        if n == 0 && unknown_before {
+            cold = true;
+            break;
+        }
+        let same = n >= 1 && face(q[n - 1]) == f;
+        let behind = n >= 1 && !same && face(q[n - 1]) == opposite(f);
+        if behind && n < 2 && unknown_before {
+            cold = true;
+            break;
+        }
+        let hidden = behind && n >= 2 && face(q[n - 2]) == f;
+        if same || hidden {
+            let at = if same { n - 1 } else { n - 2 };
+            let turns = (power(q[at]) + power(m) + 2) % QUARTERS;
+            if turns != 0 {
+                q[at] = mv(f, turns - 1);
+            } else {
+                q.remove(at);
+            }
+            second_joined |= j == 1;
+        } else {
+            q.push(m);
+        }
+    }
+    if cold || second_joined {
+        return JOIN_COLD;
+    }
+    let keep = hist.iter().zip(&q).take_while(|(a, b)| a == b).count();
+    let replace = &q[keep..];
+    assert!(replace.len() <= JOIN_MAX_REPLACE);
+    let taken = (m0 != none) as u32 + (m1 != none) as u32;
+    let mut e = 0u32;
+    for (k, &m) in replace.iter().enumerate() {
+        e |= (m as u32) << (k as u32 * u8::BITS);
+    }
+    e | ((hist.len() - keep) as u32) << JOIN_DROP | (replace.len() as u32) << JOIN_REPLACE | taken << JOIN_TAKEN
 }

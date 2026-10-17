@@ -17,33 +17,40 @@ $ thistle -p shorter R U2 F\' L D2 B R\' U F2 D\' L2 B\' R2 U\' F L\' D B2 R F\'
 
 | solver | mean length (HTM) | time / solve |
 |---|---|---|
-| petrus `fast`, steps searched (petrus until compiled steps) | 38.91 | 1764 ns |
-| petrus `fast`, compiled steps (petrus now, identical solutions) | 38.91 | 446 ns |
-| petrus `neutral` (best of 48 orientations) | 37.88 | 1876 ns |
-| thistle `fast` | 30.90 | 147 ns |
-| thistle `fast5` (phase 2 split in two) | 34.95 | 136 ns |
-| thistle `fast6` (phases 2 and 4 split) | 38.20 | 156 ns |
-| thistle `short` | 25.49 | 1213 ns |
-| thistle `shorter` | 24.00 | 2340 ns |
-| thistle `shortest` | 22.69 | 10.5 µs |
+| petrus `fast`, steps searched (petrus until compiled steps) | 38.91 | 1763 ns |
+| petrus `fast`, compiled steps (petrus now, identical solutions) | 38.91 | 435 ns |
+| petrus `neutral` (best of 48 orientations) | 37.88 | 1883 ns |
+| thistle `fast` | 30.90 | 126 ns (86 alone) |
+| thistle `fast5` (phase 2 split in two) | 34.95 | 84 ns (78 alone) |
+| thistle `fast6` (phases 2 and 4 split) | 38.20 | 95 ns (91 alone) |
+| thistle `short` | 25.49 | 1206 ns |
+| thistle `shorter` | 24.00 | 2327 ns |
+| thistle `shortest` | 22.69 | 10.4 µs |
 
 Apple M1 Pro, one thread, the same 20 000 random states for every row,
 interleaved in one process, best of 11 rounds
-(`cargo run --release --example compiled_petrus`), under background
-load (load average ~10-16 on 10 cores). The searched row is the step searches
-alone; petrus `fast` as shipped before compiled steps took 2.2 µs on a
-quiet machine. For scale, two-phase (min2phase 0.2.4) reaches 21.3 moves
-in ~520 µs and petrus' own beam (`short`) 30.2 moves in ~165 µs.
+(`cargo run --release --example compiled_petrus -- 20000 11`), under
+background load (load average ~10 on 10 cores). Each round starts with the
+caches full of the other rows' tables; "alone" is the solver run by itself
+(`examples/abtime.rs`, interleaved with other builds by `prof/ab.sh`),
+its tables warm. The searched row is the step searches alone; petrus
+`fast` as shipped before compiled steps took 2.2 µs on a quiet machine.
+For scale, two-phase (min2phase 0.2.4) reaches 21.3 moves in ~520 µs and
+petrus' own beam (`short`) 30.2 moves in ~165 µs.
 
 Against the original question (petrus `fast`, 2.2 µs, 38.9 moves): **8
-fewer moves at ~7x the speed**, or **38% fewer moves (24.0) at about the
-same speed**. Against petrus as it is now, with its steps compiled the same
-way (section 5): thistle `fast` is shorter by 8 moves and ~3x as
-fast, and at `neutral`'s time thistle `shorter` gives 24.0 moves instead
-of 37.9.
+fewer moves at ~17x the speed** (`fast`), or **38% fewer moves (24.0) at
+about the same speed** (`shorter`). Against petrus as it is now, with its
+steps compiled the same way (section 5): thistle `fast` is shorter by 8
+moves and ~3.5x as fast, `fast6` as long and ~4.5x as fast, and at
+`neutral`'s time thistle `shorter` gives 24.0 moves instead of 37.9.
 
-A first solve in a fresh process takes ~15 µs in process (petrus: ~0.4 ms,
-nearly all of it unpacking its last-layer table); see
+Solving several cubes per call (`solve_batch`) overlaps their lookups:
+`fast5` takes **40 ns** a cube in batches of 8, `fast` 49 ns (see
+[Batches](#batches)).
+
+A first solve in a fresh process takes ~21-25 µs in process (petrus:
+~0.4 ms, nearly all of it unpacking its last-layer table); see
 [First-solve latency](#first-solve-latency).
 
 ## How the approach was found
@@ -143,7 +150,7 @@ orientation) with a few NEON instructions:
 ### Tables
 
 Built by `build.rs` from BFS over each phase (~8 s on 10 cores) and
-embedded, 10.5 MB in all:
+embedded, 13.2 MB in all:
 
 - distance per case (bytes), for ranking;
 - per case, up to 16 / 4 / 16 / 1 optimal algorithms for phases 1-4, packed
@@ -165,7 +172,11 @@ embedded, 10.5 MB in all:
   of algorithms (phase 4's 2.0 MB -> 0.5 MB);
 - each row's first alternative again, alone, for `fast` (1.5 MB): reading
   only those, the chain's working set is ~2 MB instead of ~8 MB;
-- the split phases' four small tables (77 KB, below).
+- the split phases' four small tables (77 KB, below);
+- for phases 1 and 3 and the first three split halves, each case's first
+  algorithm again, composed into one permutation as lane tables (64 bytes:
+  2.2 MB in all), so the chain applies it with one lookup;
+- the join table (0.5 MB, see Search).
 
 ### Search
 
@@ -173,26 +184,44 @@ embedded, 10.5 MB in all:
 written so that no branch depends on the cube. A mispredicted branch costs
 more than its own refetch here: it also discards the next solve, which
 the core has already started (with no unpredictable branch, consecutive
-solves overlap in the out-of-order window). So:
+solves overlap in the out-of-order window). A single solve is a chain of
+dependent loads, so the other aim is to keep that chain short. So:
 
-- an algorithm's moves are unpacked with vector shuffles (phase 1's
+- phases 1 and 3 (and `fast5`'s and `fast6`'s halves) apply their
+  algorithm as one stored permutation, looked up by the case index: the
+  next phase waits on one load and two `TBL`s, not on the algorithm's
+  row, its unpacking and up to seven move pairs. The moves are still
+  unpacked for the solution, off the critical path. This took `fast` from
+  ~123 to ~97 ns alone, and made the split presets the fastest: every
+  phase they apply is one lookup (phase 2 of `fast` is not composed: per
+  case it would be 69 MB);
+- the other algorithms' moves are unpacked with vector shuffles (phase 1's
   moves as bytes, the others' as nibbles mapped through the symmetry with
-  one `TBL`);
-- it is applied as a fixed number of move pairs per phase (its longest
-  algorithm's), padded with an identity "move" that the pair tables
-  include: the loop's trip count no longer depends on the cube;
+  one `TBL`) and applied as a fixed number of move pairs per phase (its
+  longest algorithm's), padded with an identity "move" that the pair
+  tables include: the loop's trip count does not depend on the cube;
 - the last phase is not applied (nothing reads the solved cube);
-- turns are merged across phase boundaries with a 6.9 KB table indexed by
-  (second-last move, last move, new move) and the last 8 moves held in a
-  register, three moves per boundary, then the rest of the algorithm is
-  one 16-byte store; the solution is copied out at a fixed size. Forcing
-  the merge's five outcomes into selects removed the last mispredictions
-  but was slower: each push then waited for the previous one's table
-  load, where the predicted branch (mostly "append") runs ahead.
+- turns are merged across phase boundaries by one lookup in the join
+  table, indexed by the solution's last two moves and the algorithm's
+  first two (19^4 entries of 4 bytes): how many of the solution's moves
+  to drop, up to three moves to write instead and how many of the
+  algorithm's moves that used. The solution's last 8 moves are held in a
+  register, so the boundary is a few shifts and one 16-byte store, with no
+  branch. Its entries are generated by running the reference merge; an
+  entry whose result depends on moves before the last two (a cancellation
+  exposing them) or after which a third move could still merge is cold,
+  and those (0.9% of `fast`'s boundaries, 3% of `fast6`'s) take the
+  general path, a 6.9 KB table of (second-last, last, new move) applied a
+  move at a time. A test checks every entry that is not cold against the
+  reference merge for every earlier move and canonical third move.
 
-Mispredicted work went from 29% of cycles to 9%, and `fast` from ~190 to
-~145 ns. With turns not merged at all (wrong lengths, measured only to
-bound this), it was ~115 ns.
+Mispredicted work went from 29% of cycles to 9% with the table-driven
+general merge, then to 2.5% with the join table. Before it, two
+independent lookups of the general table decided whether anything merged
+(85% of boundaries merge nothing), but the branch on that missed on the
+other 15%. With turns not merged at all (wrong lengths, measured only to
+bound this), `fast` takes ~72 ns alone: merging costs ~15 ns, mostly the
+dependent lookups in the join table (it does not fit in L1).
 
 The other presets run a beam:
 
@@ -255,10 +284,37 @@ any two adjacent phases gives 10^9-10^10 cases.
 `fast5` and `fast6` compile the restore splits of phases 2 and 4 (their
 coordinates exist already; the phase-4 subgroup split would need a new
 coset coordinate). They replace phase 2's 1.4 MB and phase 4's 0.5 MB
-with 77 KB: every table `fast6` reads fits in L2. Steady state, it does
-not pay much: interleaved, `fast` 147, `fast5` 136, `fast6` 156 ns. The
-time saved on misses goes on the extra phase and the 3.5-7 extra moves.
-The splits pay mainly while the tables are paging in (below).
+with 77 KB. With moves applied pair by pair, that did not pay much
+(interleaved, `fast` 147, `fast5` 136, `fast6` 156 ns): the time saved on
+misses went on the extra phase and the 3.5-7 extra moves. With composed
+permutations it does: the halves' tables are small enough to compose
+(180 KB), so each of their phases is one lookup, and `fast5` is now the
+fastest preset (84 ns in the comparison above, `fast` 126).
+
+## Batches
+
+`solve_batch::<K>` solves K cubes per call: it takes each phase's step on
+all K, then merges each solution, so their table loads are in flight
+together instead of each solve's chain waiting on its own. Alone, ns per
+cube (`examples/abbatch.rs`, min of 15 interleaved rounds, background
+load ~10):
+
+| preset | K = 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| `fast` | 78 | 72 | 59 | 49 | 50 |
+| `fast5` | 72 | 68 | 51 | 40 | 41 |
+| `fast6` | 84 | 73 | 53 | 44 | 46 |
+
+(K = 1 is the same chain as `solve`; this harness's build lays it out
+slightly differently.) Batches of 8 run ~1.8x as fast as single solves:
+~135 cycles and ~590 instructions per `fast5` cube (single: ~235
+cycles for the same instructions), now limited by throughput. The beam presets solve a batch one cube at a time.
+
+A lane-parallel merge was tried for batches: 16 solutions in NEON byte
+lanes, branch free, windows transposed in and out with `LD4`/`UZP`. It
+beat the branchy merge only at K = 16 before boundaries took a fast path
+(76 against 77 ns), lost after (76 against 70), and the join table made
+the scalar merge branch free anyway.
 
 ## First-solve latency
 
@@ -269,24 +325,32 @@ cache (`examples/firstsolve.rs`, medians of 9 fresh processes):
 
 | solver | first solve | its faults | first 100 solves | their faults |
 |---|---|---|---|---|
-| thistle `fast` | 14 µs | 15 | 121 µs | 98 |
-| thistle `fast5` | 13 µs | 14 | 62 µs | 46 |
-| thistle `fast6` | 13 µs | 14 | 48 µs | 20 |
-| thistle `short` | 55 µs | 54 | 0.6 ms | 423 |
+| thistle `fast` | 25 µs | 21 | 209 µs | 197 |
+| thistle `fast5` | 21 µs | 24 | 141 µs | 154 |
+| thistle `fast6` | 21 µs | 25 | 115 µs | 128 |
+| thistle `short` | 50 µs | 54 | 0.5 ms | 427 |
 | petrus `fast` | 0.3 ms set-up + 7-10 µs | 42 + 6 | 0.17-0.26 ms | 135 |
 
-A first `fast` solve is about a dozen faults (code, the small tables and
-one page per lookup), whatever the chain. Whole process, spawn to exit,
-300 fresh processes (`examples/coldrun.rs`, binary in the file cache): hello world 1.80 ms, this binary doing nothing 1.95 ms,
-thistle `fast` 1.93, `fast6` 1.96, `shorter` 2.21, petrus `fast` 2.38.
-So thistle's first solve is within ~0.15 ms of the floor, most of it the
-binary's size (33 MB here with both crates' tables).
+The composed permutations and the join table cost this axis: before them,
+the first solve took 13-14 µs (14-15 faults) and the first 100 `fast`
+solves 121 µs (98 faults), `fast6`'s 48 µs (20 faults). The 1.9 MB of
+phase 3's permutations are read at random, a fault per new page; they
+repay that after a few thousand solves. A first `fast` solve is about
+twenty faults (code, the small tables and one page per lookup), whatever
+the chain. Whole process, spawn to exit, 300 fresh processes
+(`examples/coldrun.rs`, binary in the file cache): hello world 1.80 ms,
+this binary doing nothing ~1.95 ms, thistle `fast` and `fast6` within
+noise of it (1.96-1.99), `shorter` 2.21, petrus `fast` 2.38 (the last two
+before the composed tables). So thistle's first solve is within ~0.15 ms
+of the floor, most of it the binary's size (36 MB here with both crates'
+tables).
 
 The first launch after installing (a binary the OS has not yet checked)
 is dominated by the OS: ~150 ms for a 0.5 MB hello world, plus ~7.5 ms per
-MB of binary (measured with padded hello worlds); thistle's 11.7 MB
-binary takes ~250 ms, and that run's faults cost ~20 µs each (`fast`'s
-first solve 0.28 ms, `fast6`'s 0.21 ms).
+MB of binary (measured with padded hello worlds); thistle's binary, then
+11.7 MB, took ~250 ms, and that run's faults cost ~20 µs each (`fast`'s
+first solve 0.28 ms, `fast6`'s 0.21 ms). It is now 14.5 MB, ~20 ms more by
+the same rate (not measured again).
 
 ### Code
 
@@ -297,18 +361,20 @@ first solve 0.28 ms, `fast6`'s 0.21 ms).
 - `src/tables.rs`: the embedded tables and lookups by case;
 - `src/algs.rs`: unpacking stored algorithms and applying them;
 - `src/merge.rs`: merging turns across phase boundaries (the beam's
-  estimate and exact merge, the chain's table-driven one);
-- `src/chain.rs`: the single chain (`fast`, `fast5`, `fast6`);
+  estimate and exact merge, the chain's join table and general path);
+- `src/chain.rs`: the single chain (`fast`, `fast5`, `fast6`), one cube or
+  a batch;
 - `src/beam.rs`: the beam (`short` and longer);
-- `src/solver.rs`: options, presets, `Solution` and `solve`.
+- `src/solver.rs`: options, presets, `Solution`, `solve` and
+  `solve_batch`.
 
 ## Correctness
 
 `cargo test --release`:
 
-- every embedded table (distances, symmetry tables, algorithms) is
-  byte-identical to a fresh generation, and each phase's diameter is the
-  known 7 / 10 / 13 / 15;
+- every embedded table (distances, symmetry tables, algorithms, composed
+  permutations, the join table) is byte-identical to a fresh generation,
+  and each phase's diameter is the known 7 / 10 / 13 / 15;
 - for random states of each phase's group, every stored alternative is
   optimal, distinct, uses only the phase's moves and lands in the next
   group (checked from the pieces, not the coordinates);
@@ -318,7 +384,12 @@ first solve 0.28 ms, `fast6`'s 0.21 ms).
 - the split halves reach their intermediate goals (from the pieces), and
   `fast5` / `fast6` are the chains of them;
 - on 100 000 random states, `fast`, `fast5` and `fast6` merge turns
-  exactly as petrus' general merge does;
+  exactly as petrus' general merge does; every join table entry that is
+  not cold merges as the reference does, whatever came before and
+  whatever canonical move follows;
+- each phase applied on its own (through the composed permutations) gives
+  the cube its moves give;
+- batches of 1, 3, 4, 8 and 16 give each cube `solve`'s solution;
 - the generator asserts its own premises: coordinates are onto, minor and
   major parts conjugate independently, order patterns identify the squares
   group's corner permutations and split the cosets exactly 420 ways;
@@ -349,6 +420,12 @@ inlining) and `prof/counters.py` (top-down cycle split).
 | phases 3-4 reduced by 16 symmetries, edges as phase 4's minor part (alg4 2.0 -> 0.5 MB) | fast 226 -> ~195 ns |
 | vector unpacking, fixed-count application, no last apply | fast ~195 -> ~190 ns, mispredicted work 29% -> 16% |
 | boundary merging by table, window in a register, fixed-size copy-out | fast ~190 -> ~145 ns, mispredicted 9% |
+| (from here, "alone": `abtime` without the other solvers) | fast 126, fast5 133, fast6 154 ns |
+| `solve_batch`: K chains interleaved phase by phase | fast at K = 8 ~70 ns |
+| merge fast path: the first two moves checked by two independent lookups | fast ~126 -> ~123, fast6 -13 ns |
+| composed permutations for phases 1 and 3 and the split halves (2.2 MB) | fast ~123 -> ~97, fast5 -> ~86; K = 8: fast 70 -> 52, fast5 -> 46 |
+| the join table (0.5 MB): boundaries without branches | fast 98 -> 90, fast5 93 -> 83, fast6 103 -> 94 (load ~14) |
+| chain check before clamping options; join index in two halves | -1-2 ns |
 
 Tried and dropped:
 
@@ -361,7 +438,16 @@ Tried and dropped:
 - merging the chain's turns with forced selects (no branch at all): ~20%
   slower than the predicted table-driven merge (see Search); merging once
   at the end instead of per phase: no gain;
-- compact child records with the survivors' cubes recomputed: slower.
+- compact child records with the survivors' cubes recomputed: slower;
+- the lane-parallel NEON merge for batches (see Batches);
+- the solution buffer padded by a window's worth of moves (for that
+  merge): single solves ~5% slower, for no reason found but layout;
+- the window updated by 128-bit integer shifts instead of a `TBL`: 87 ->
+  101 ns;
+- the join table's general path out of line (`#[cold]`): ~5 ns slower,
+  although it runs at 1-3% of boundaries;
+- the single chain written as a batch of one: ~2% slower (layout; a
+  variant with closures 10%), so `solve` keeps its own chain.
 
 ## Usage
 
@@ -370,15 +456,16 @@ cargo build --release
 target/release/thistle [-p PRESET] R U F2 D' ...      # solve a scramble
 target/release/thistle -f UUUUUUUUURRR...             # 54-char facelets
 target/release/thistle -p shorter --bench 20000       # same states as petrus --bench
-cargo run --release --example compiled_petrus         # the comparison table above
+cargo run --release --example compiled_petrus -- 20000 11   # the comparison table above
+cargo run --release --example abbatch -- 32000 fast5@8      # ns per cube, batches of 8
 cargo run --release --example sweep                   # length / time frontier
 cargo run --release --example splits                  # five- and six-phase chains
 cargo run --release --example firstsolve -- thistle-fast   # first solves in this process
 cargo run --release --example coldrun -- 300 target/release/examples/cold thistle-fast
 ```
 
-As a library: `thistle::solver::{Tables, solve, Options}` with petrus'
-`Cube`.
+As a library: `thistle::solver::{Tables, solve, solve_batch, Options}`
+with petrus' `Cube`.
 
 ## Limitations
 

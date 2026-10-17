@@ -64,6 +64,9 @@ pub const MOVES3: [u8; 10] = [
 pub const MOVES4: [u8; 6] =
     [mv(FACE_U, HALF), mv(FACE_R, HALF), mv(FACE_F, HALF), mv(FACE_D, HALF), mv(FACE_L, HALF), mv(FACE_B, HALF)];
 
+/// Each phase's moves, by slot.
+pub const PHASE_MOVES: [&[u8]; N_PHASES] = [&MOVES1, &MOVES2, &MOVES3, &MOVES4];
+
 // ------------------------------------------------------------- sizes
 
 /// Edge-orientation masks with even parity: the last bit is implied.
@@ -456,6 +459,34 @@ pub const HALF_SIZES: [usize; N_HALVES] = [SLICE_COMBS, TWISTS, G3_CORNER_PERMS,
 pub const HALF_MAX_LEN: [usize; N_HALVES] = [5, 10, 4, 14];
 /// The phase each half belongs to (its moves and move slots).
 pub const HALF_PHASE: [usize; N_HALVES] = [PHASE_2, PHASE_2, LAST, LAST];
+// ------------------------------------------------------------- joining phases
+
+/// The join table (`gen::join_table`): by the solution's last two moves and
+/// the next algorithm's first two (each a move or `NO_MOVE`), what merging
+/// those two does. An entry's bytes 0-2 are the moves that replace the
+/// solution's last `drop`, byte 3 packs `drop`, their count and the
+/// algorithm moves consumed (2 bits each) and a flag for the rare cases
+/// that need the exact general merge.
+pub const JOIN_VALUES: usize = NMOVES + 1;
+pub const JOIN_SIZE: usize = JOIN_VALUES * JOIN_VALUES * JOIN_VALUES * JOIN_VALUES;
+pub const JOIN_MAX_REPLACE: usize = 3;
+pub const JOIN_FIELD_BITS: u32 = 2;
+pub const JOIN_DROP: u32 = (JOIN_MAX_REPLACE as u32) * u8::BITS;
+pub const JOIN_REPLACE: u32 = JOIN_DROP + JOIN_FIELD_BITS;
+pub const JOIN_TAKEN: u32 = JOIN_REPLACE + JOIN_FIELD_BITS;
+pub const JOIN_COLD: u32 = 1 << (JOIN_TAKEN + JOIN_FIELD_BITS);
+pub const JOIN_FIELD: u32 = (1 << JOIN_FIELD_BITS) - 1;
+
+/// Index of the join entry for moves `m0`, `m1` after `a2`, `a1`.
+#[inline(always)]
+pub fn join_index(a2: u8, a1: u8, m0: u8, m1: u8) -> usize {
+    // two independent halves: the algorithm's is known before the solution's
+    let pair = |x: u8, y: u8| x as usize * JOIN_VALUES + y as usize;
+    pair(a2, a1) * (JOIN_VALUES * JOIN_VALUES) + pair(m0, m1)
+}
+
+/// Halves stored composed as well (see [`COMPOSED`]): all but the last.
+pub const HALF_COMPOSED: [bool; N_HALVES] = [true, true, true, false];
 
 // ------------------------------------------------------------- symmetry
 
@@ -536,3 +567,9 @@ pub fn encode(slots: &[usize], bits: usize) -> u64 {
 /// Phase 2 and 4 store one: the search gains most from choosing among
 /// phase 1 and phase 3 solutions, and phase 4 is final.
 pub const MAX_ALTS: [usize; N_PHASES] = [16, 4, 16, 1];
+
+/// Phases whose cases also store their first algorithm composed into one
+/// permutation (as lane tables), so that the chain applies it with one
+/// lookup: phase 1 (128 KB) and phase 3 (1.9 MB). Phase 2's would be 69 MB,
+/// and nothing reads the cube after phase 4.
+pub const COMPOSED: [bool; N_PHASES] = [true, false, true, false];

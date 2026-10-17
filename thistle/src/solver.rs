@@ -99,6 +99,13 @@ impl Options {
         })
     }
 
+    /// One start, one partial and one alternative per phase (after
+    /// clamping): the single chain.
+    #[inline(always)]
+    fn is_chain(&self) -> bool {
+        self.starts <= 1 && self.width <= 1 && self.alts.iter().all(|&a| a <= 1)
+    }
+
     pub(crate) fn clamped(&self) -> Options {
         let mut o = self.clone();
         o.starts = o.starts.clamp(1, MAX_STARTS);
@@ -130,40 +137,28 @@ pub struct Solution {
 }
 
 pub fn solve(t: &Tables, cube: &Cube, opts: &Options) -> Solution {
-    let o = opts.clamped();
-    if o.starts == 1 && o.width == 1 && o.alts.iter().all(|&a| a == 1) {
-        return match (o.split.phase2, o.split.phase4) {
+    if opts.is_chain() {
+        return match (opts.split.phase2, opts.split.phase4) {
             (false, false) => solve_chain::<false, false>(t, cube),
             (true, false) => solve_chain::<true, false>(t, cube),
             (false, true) => solve_chain::<false, true>(t, cube),
             (true, true) => solve_chain::<true, true>(t, cube),
         };
     }
-    solve_beam(t, cube, &o)
+    solve_beam(t, cube, &opts.clamped())
 }
 
 /// `solve` for `K` cubes at once. The single chain interleaves them phase by
 /// phase, for throughput; the beam solves them one by one.
 pub fn solve_batch<const K: usize>(t: &Tables, cubes: &[Cube; K], opts: &Options) -> [Solution; K] {
-    solve_batch_merging::<K, false>(t, cubes, opts)
-}
-
-/// `solve_batch`, merging turns in NEON lanes or not (`K` at most 16 with
-/// `LANE_MERGE`), for comparing the two.
-#[doc(hidden)]
-pub fn solve_batch_merging<const K: usize, const LANE_MERGE: bool>(
-    t: &Tables,
-    cubes: &[Cube; K],
-    opts: &Options,
-) -> [Solution; K] {
-    let o = opts.clamped();
-    if o.starts == 1 && o.width == 1 && o.alts.iter().all(|&a| a == 1) {
-        return match (o.split.phase2, o.split.phase4) {
-            (false, false) => solve_chains::<K, false, false, LANE_MERGE>(t, cubes),
-            (true, false) => solve_chains::<K, true, false, LANE_MERGE>(t, cubes),
-            (false, true) => solve_chains::<K, false, true, LANE_MERGE>(t, cubes),
-            (true, true) => solve_chains::<K, true, true, LANE_MERGE>(t, cubes),
+    if opts.is_chain() {
+        return match (opts.split.phase2, opts.split.phase4) {
+            (false, false) => solve_chains::<K, false, false>(t, cubes),
+            (true, false) => solve_chains::<K, true, false>(t, cubes),
+            (false, true) => solve_chains::<K, false, true>(t, cubes),
+            (true, true) => solve_chains::<K, true, true>(t, cubes),
         };
     }
+    let o = opts.clamped();
     cubes.map(|c| solve_beam(t, &c, &o))
 }

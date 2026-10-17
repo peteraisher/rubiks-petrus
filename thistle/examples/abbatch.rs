@@ -1,12 +1,12 @@
 //! `abtime` for batches: mean ns per solve over N distinct random cubes, one
 //! number per preset on one line.
 //!   cargo run --release --example abbatch -- N PRESET...
-//! `PRESET@K` solves K cubes per call (`solve_batch`, K in 1, 2, 4, 8, 16);
-//! `PRESET@Kv` merges their turns in NEON lanes. (A separate example so that
-//! `abtime` still builds in revisions without batches.)
+//! `PRESET@K` solves K cubes per call (`solve_batch`, K in 1, 2, 4, 8, 16).
+//! (A separate example so that `abtime` still builds in revisions without
+//! batches.)
 use petrus::cube::{Cube, Rng};
 use std::time::Instant;
-use thistle::solver::{solve, solve_batch_merging, Options, Tables};
+use thistle::solver::{solve, solve_batch, Options, Tables};
 
 const WARM: usize = 2000;
 const NANOS: f64 = 1e9;
@@ -39,16 +39,11 @@ fn main() {
                     std::hint::black_box(solve(&t, c, &o));
                 }
             }
-            Some("1") => batches::<1, false>(&t, &cubes, &o),
-            Some("1v") => batches::<1, true>(&t, &cubes, &o),
-            Some("2") => batches::<2, false>(&t, &cubes, &o),
-            Some("2v") => batches::<2, true>(&t, &cubes, &o),
-            Some("4") => batches::<4, false>(&t, &cubes, &o),
-            Some("4v") => batches::<4, true>(&t, &cubes, &o),
-            Some("8") => batches::<8, false>(&t, &cubes, &o),
-            Some("8v") => batches::<8, true>(&t, &cubes, &o),
-            Some("16") => batches::<16, false>(&t, &cubes, &o),
-            Some("16v") => batches::<16, true>(&t, &cubes, &o),
+            Some("1") => batches::<1>(&t, &cubes, &o),
+            Some("2") => batches::<2>(&t, &cubes, &o),
+            Some("4") => batches::<4>(&t, &cubes, &o),
+            Some("8") => batches::<8>(&t, &cubes, &o),
+            Some("16") => batches::<16>(&t, &cubes, &o),
             Some(k) => panic!("batch size {k}"),
         }
         print!("{:.0} ", t0.elapsed().as_secs_f64() / n as f64 * NANOS);
@@ -56,8 +51,8 @@ fn main() {
     println!();
 }
 
-fn batches<const K: usize, const LANE_MERGE: bool>(t: &Tables, cubes: &[Cube], o: &Options) {
+fn batches<const K: usize>(t: &Tables, cubes: &[Cube], o: &Options) {
     for c in cubes.as_chunks::<K>().0 {
-        std::hint::black_box(solve_batch_merging::<K, LANE_MERGE>(t, c, o));
+        std::hint::black_box(solve_batch::<K>(t, c, o));
     }
 }
