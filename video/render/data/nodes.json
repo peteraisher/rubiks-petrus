@@ -2,27 +2,27 @@
   "facelets": "RLBDUDLRRDRDDRULFLBBFLFBUBDBUFLDLDFFFFUULUBBRLDUFBRURR",
   "cpu": "Apple M1 Pro",
   "solvers": [
-    {"id": "thistle", "name": "thistle (this project)", "method": "Thistlethwaite", "total_ns": 166.8, "steps": [
-      {"name": "Orient edges", "moves": "D F B", "htm": 3, "ns": 9.4, "nodes": 1, "facelets": "DUDDUDRUULRFRRLRBFBLBBFBRBFUDDFDUFUUBFDLLLRRBLFLFBDLRU"},
-      {"name": "Twist corners, place E-slice", "moves": "D2 R' U B2 U' R", "htm": 6, "ns": 16.6, "nodes": 1, "facelets": "DUDDUDUUULRFRRLBLBRLBBFBLRRUUDUDDDDUFBFRLLLBFLFRFBFRFB"},
-      {"name": "Into the squares group", "moves": "F2 U' B2 U L2 F2 U R2 D", "htm": 9, "ns": 19.2, "nodes": 1, "facelets": "UUUUUDDDDLLLRRLLRLFFFBFFBBBDDDDDUUUURLRRLLRRRFBFFBBBFB"},
-      {"name": "Half turns only", "moves": "U2 L2 U2 L2 U2 B2 R2 F2 U2 L2 D2 R2 B2", "htm": 13, "ns": 21.9, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
+    {"id": "thistle", "name": "thistle (this project)", "method": "Thistlethwaite", "total_ns": 125.0, "steps": [
+      {"name": "Orient edges", "moves": "D F B", "htm": 3, "ns": 4.1, "nodes": 1, "facelets": "DUDDUDRUULRFRRLRBFBLBBFBRBFUDDFDUFUUBFDLLLRRBLFLFBDLRU"},
+      {"name": "Twist corners, place E-slice", "moves": "D2 R' U B2 U' R", "htm": 6, "ns": 16.3, "nodes": 1, "facelets": "DUDDUDUUULRFRRLBLBRLBBFBLRRUUDUDDDDUFBFRLLLBFLFRFBFRFB"},
+      {"name": "Into the squares group", "moves": "F2 U' B2 U L2 F2 U R2 D", "htm": 9, "ns": 7.1, "nodes": 1, "facelets": "UUUUUDDDDLLLRRLLRLFFFBFFBBBDDDDDUUUURLRRLLRRRFBFFBBBFB"},
+      {"name": "Half turns only", "moves": "U2 L2 U2 L2 U2 B2 R2 F2 U2 L2 D2 R2 B2", "htm": 13, "ns": 21.6, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
     ]},
-    {"id": "petrus", "name": "petrus (this project)", "method": "Petrus", "total_ns": 397.1, "steps": [
-      {"name": "2x2x2 block", "moves": "R2 D' B' D2 R D2", "htm": 6, "ns": 57.6, "nodes": 1, "facelets": "UUUDUFLRBDULBRFFRFBBRLFUFRDUDRDDFDDLBFULLULLRFRRLBBDBB"},
-      {"name": "2x2x3 block", "moves": "R F2 U' F2 D' F D", "htm": 7, "ns": 58.4, "nodes": 1, "facelets": "RUUUUDBUULRFRRULFRRLBFFBFFFDDUDDRDDFBRULLLLLLRBDFBBDBB"},
+    {"id": "petrus", "name": "petrus (this project)", "method": "Petrus", "total_ns": 375.0, "steps": [
+      {"name": "2x2x2 block", "moves": "R2 D' B' D2 R D2", "htm": 6, "ns": 56.4, "nodes": 1, "facelets": "UUUDUFLRBDULBRFFRFBBRLFUFRDUDRDDFDDLBFULLULLRFRRLBBDBB"},
+      {"name": "2x2x3 block", "moves": "R F2 U' F2 D' F D", "htm": 7, "ns": 58.0, "nodes": 1, "facelets": "RUUUUDBUULRFRRULFRRLBFFBFFFDDUDDRDDFBRULLLLLLRBDFBBDBB"},
       {"name": "Edge orientation", "moves": "R2 F' U F", "htm": 4, "ns": 55.1, "nodes": 1, "facelets": "RURUUUBURFBDRRRURLRLUFFFFFLDDFDDDDDUDFULLLLLLBRFBBBBBB"},
-      {"name": "First two layers", "moves": "U' R U R U2 R U2 R' U' R2 U' R", "htm": 12, "ns": 65.5, "nodes": 1, "facelets": "BURUUULUBRBURRRRRRURUFFFFFFDDDDDDDDDUFFLLLLLLFLLBBBBBB"},
-      {"name": "Last layer (ZBLL)", "moves": "U L U2 L' U2 L' B L' F' L' F L' B'", "htm": 13, "ns": 31.0, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
+      {"name": "First two layers", "moves": "U' R U R U2 R U2 R' U' R2 U' R", "htm": 12, "ns": 63.0, "nodes": 1, "facelets": "BURUUULUBRBURRRRRRURUFFFFFFDDDDDDDDDUFFLLLLLLFLLBBBBBB"},
+      {"name": "Last layer (ZBLL)", "moves": "U L U2 L' U2 L' B L' F' L' F L' B'", "htm": 13, "ns": 30.8, "nodes": 1, "facelets": "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"}
     ]},
-    {"id": "min2phase", "name": "min2phase", "method": "Kociemba two-phase", "total_ns": 322190.9, "steps": [
-      {"name": "Two-phase search", "moves": "U' D L U L B L' F D F2 D L2 D' B2 D L2 B2 D2 R2 B2 U'", "htm": 21, "ns": 322190.9, "nodes": 3428, "facelets": null}
+    {"id": "min2phase", "name": "min2phase", "method": "Kociemba two-phase", "total_ns": 324282.8, "steps": [
+      {"name": "Two-phase search", "moves": "U' D L U L B L' F D F2 D L2 D' B2 D L2 B2 D2 R2 B2 U'", "htm": 21, "ns": 324282.8, "nodes": 3428, "facelets": null}
     ]},
-    {"id": "cfop", "name": "rcuber", "method": "CFOP", "total_ns": 794464.5, "steps": [
-      {"name": "Cross", "moves": "B R2 U' F2 L' B'", "htm": 6, "ns": 621334.6, "nodes": 354, "facelets": null},
-      {"name": "F2L", "moves": "R' U' R U' L' U2 L2 F' L' F B' U B R U2 R' B' U' B U2 R' U2 R2 B' R' B B' U B U' L U L' U2 L U' L'", "htm": 37, "ns": 157859.7, "nodes": 3050, "facelets": null},
-      {"name": "OLL", "moves": "U' R U R' U R' F R F' R U2 R'", "htm": 12, "ns": 6106.6, "nodes": 16, "facelets": null},
-      {"name": "PLL", "moves": "R U' R U R U R U' R' U' R2", "htm": 11, "ns": 2387.4, "nodes": 11, "facelets": null}
+    {"id": "cfop", "name": "rcuber", "method": "CFOP", "total_ns": 784175.8, "steps": [
+      {"name": "Cross", "moves": "B R2 U' F2 L' B'", "htm": 6, "ns": 595630.9, "nodes": 354, "facelets": null},
+      {"name": "F2L", "moves": "R' U' R U' L' U2 L2 F' L' F B' U B R U2 R' B' U' B U2 R' U2 R2 B' R' B B' U B U' L U L' U2 L U' L'", "htm": 37, "ns": 152193.2, "nodes": 3050, "facelets": null},
+      {"name": "OLL", "moves": "U' R U R' U R' F R F' R U2 R'", "htm": 12, "ns": 5933.6, "nodes": 16, "facelets": null},
+      {"name": "PLL", "moves": "R U' R U R U R U' R' U' R2", "htm": 11, "ns": 2325.7, "nodes": 11, "facelets": null}
     ]}
   ]
 }
