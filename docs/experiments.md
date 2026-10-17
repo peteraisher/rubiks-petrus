@@ -17,3 +17,5 @@ Measured on an Apple M1 Pro (10 cores) under desktop background load;
 | lookahead ranking (moves so far + next-step bound) | short 32.7 -> 30.8 moves, at ~3x time | yes, switchable |
 | consistent next-step bound when ordering step-1 candidates | no measurable change | no |
 | lookahead pruning *inside* the step-1 search | short 30.1 -> 29.5 moves but 4x slower; a wider beam is the better trade | no |
+| compiled steps: the search's own solution stored per case (2x2x2 253 440 states, expansion 6048, EO 64, F2L 56 700; 3.7 MB) | fast 2.4 -> 1.1 us, identical solutions | yes |
+| greedy path without the beam (one orientation, beam 1, one alternative) | fast 1.1 -> 0.5 us, classic 2.5 -> 0.6 us; 10 threads 1.5M -> 4.4M solves/s | yes |

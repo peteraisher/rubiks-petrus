@@ -92,6 +92,65 @@ fn steps_are_optimal_vs_brute_force() {
 }
 
 #[test]
+fn compiled_tables_match_a_fresh_build() {
+    let t = tables();
+    let (t222, t222_front, teo, tf2l) = (T222.build(), T222_FRONT.build(), TEO.build(), TF2L.build());
+    let t223 = [T223_D.build(), T223_L.build(), T223_FD.build(), T223_FB.build()];
+    let b = petrus::compiled::Bounds {
+        t222: &t222,
+        t222_front: &t222_front,
+        t223: [&t223[0], &t223[1], &t223[2], &t223[3]],
+        teo: &teo,
+        tf2l: &tf2l,
+    };
+    for (k, algs) in petrus::compiled::build(&b).iter().enumerate() {
+        let bytes: Vec<u8> = algs.iter().flat_map(|a| a.to_le_bytes()).collect();
+        assert!(t.compiled_table(k) == bytes.as_slice(), "{}", petrus::compiled::NAMES[k]);
+    }
+}
+
+/// The compiled step returns exactly what the search returns.
+fn check_compiled<S: Step>(c: &Cube) {
+    let t = tables();
+    let (mut a, mut b) = (0, 0);
+    assert_eq!(solve_step::<S>(t, c, 1, 0, &mut a), search_step::<S>(t, c, 1, 0, &mut b), "{}", S::NAME);
+    assert_eq!(a, 0, "{} was not compiled", S::NAME);
+}
+
+#[test]
+fn compiled_steps_equal_the_search() {
+    let t = tables();
+    // every expansion and EO case
+    for vc in (0..LANE_VALUES).filter(|&v| v % N_CORNERS != DBL) {
+        for vf in (0..LANE_VALUES).filter(|&v| ![DL, DB, BL].contains(&(v % N_EDGES))) {
+            for vl in
+                (0..LANE_VALUES).filter(|&v| ![DL, DB, BL].contains(&(v % N_EDGES)) && v % N_EDGES != vf % N_EDGES)
+            {
+                let mut c = Cube::SOLVED;
+                (c.c[DLF], c.e[DF], c.e[FL]) = (vc as u8, vf as u8, vl as u8);
+                check_compiled::<Expand223>(&c);
+            }
+        }
+    }
+    let mut rng = Rng::new(12);
+    for _ in 0..200 {
+        check_compiled::<EdgeOrient>(&solved_223(&mut rng));
+    }
+    // the 2x2x2 and F2L on states met while solving random cubes
+    for _ in 0..500 {
+        let mut c = Cube::random(&mut rng);
+        let mut nodes = 0;
+        check_compiled::<Block222>(&c);
+        c = c.apply_seq(&solve_step::<Block222>(t, &c, 1, 0, &mut nodes)[0]);
+        check_compiled::<Expand223>(&c);
+        c = c.apply_seq(&solve_step::<Expand223>(t, &c, 1, 0, &mut nodes)[0]);
+        check_compiled::<EdgeOrient>(&c);
+        c = c.apply_seq(&solve_step::<EdgeOrient>(t, &c, 1, 0, &mut nodes)[0]);
+        check_compiled::<FirstTwoLayers>(&c);
+    }
+}
+
+#[test]
 fn step_alternatives_are_valid_and_sorted() {
     let t = tables();
     let mut rng = Rng::new(8);

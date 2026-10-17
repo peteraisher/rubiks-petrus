@@ -21,16 +21,17 @@ are merged in the total.
 
 | preset | what it does | mean length (HTM) | time / solve (1 core) |
 |---|---|---|---|
-| `classic` | Lars' 7 steps, fixed orientation, each step optimal | 51.5 | 2.5 µs |
-| `fast` | steps 1-4 optimal, one-look optimal last layer (ZBLL) | 38.9 | 2.4 µs |
-| `neutral` | as `fast`, best of all 48 orientations | 37.9 | 3.5 µs |
-| `short` | beam search over orientations and step alternatives | 30.0 | 172 µs |
-| `shortest` | wider beam | 28.2 | 773 µs |
+| `classic` | Lars' 7 steps, fixed orientation, each step optimal | 51.5 | 0.5 µs |
+| `fast` | steps 1-4 optimal, one-look optimal last layer (ZBLL) | 38.9 | 0.5 µs |
+| `neutral` | as `fast`, best of all 48 orientations | 37.9 | 2.0 µs |
+| `short` | beam search over orientations and step alternatives | 30.0 | 165 µs |
+| `shortest` | wider beam | 28.2 | 736 µs |
 
 Apple M1 Pro, random-state scrambles, best of 5 runs of 20 000 cubes
-(`scripts/bench.sh`). On all 10 cores the `fast` preset does ~1.5 million
-solves per second. Tables are embedded at build time, so there is no startup
-cost: a CLI solve takes a few milliseconds end to end.
+(`scripts/bench.sh`), with some background load. On all 10 cores the `fast`
+preset does ~4.4 million solves per second. Tables are embedded at build
+time, so there is no startup cost: a CLI solve takes a few milliseconds end
+to end.
 
 ## The method
 
@@ -115,6 +116,27 @@ remaining partial can beat the beam's worst member, and caps each search at
 the depth that could still enter the beam. So picking the best of 48
 orientations costs 48 table lookups plus one search, not 48 searches.
 
+### Compiled steps: one lookup per step
+
+Once the earlier steps are done, a step's starting state is small: the
+2x2x2 depends on 4 pieces (253 440 states), the expansion to 2x2x3 only on
+DLF, DF and FL (6048 cases), EO only on the flips of the seven other edges
+(64), F2L on 56 700 <R,U> states. So `build.rs` stores, for every case, the
+solution the step search returns, and a step that wants one optimal solution
+(every step of `classic` and `fast`, the greedy steps of `neutral`) is a
+table lookup instead of a search (`src/compiled.rs`, 3.7 MB).
+
+The solutions are exactly the search's: IDA* over canonical sequences
+returns the lexicographically first optimal sequence in the step's move
+order whatever its heuristic, since pruning with an admissible bound only
+drops subtrees without a solution and none can reach the goal early. The
+tables are built with any admissible bound (an exact descent for the 2x2x2
+and F2L), and the tests check the embedded ones against a fresh build and
+against the search, case by case. With one orientation and a beam of one,
+the solve also skips the beam's bookkeeping. `fast` went from 2.4 to 0.5 µs
+with identical output; the beam presets, which want several alternatives
+per step, still search.
+
 ### Last layer: an optimal table for every case
 
 After step 4 there are exactly 7776 last-layer states. `petrus gen-ll`
@@ -143,6 +165,9 @@ best step algorithm per projection key is the shortest entry with that key.
   2x2x2 God's number is 8.
 - **Optimality:** each step's solution length equals an exhaustive
   heuristic-free search on near-solved states.
+- **Compiled steps:** the embedded tables are byte-identical to a fresh
+  build; every expansion and EO case, and the 2x2x2 and F2L of states met
+  while solving random cubes, give exactly the search's solution.
 - **Last layer:** all 7776 entries solve their case, and every LL mode
   satisfies its step postconditions without breaking F2L/EO.
 - **Full solves** for every preset and mode: the solution solves the cube;
@@ -168,6 +193,7 @@ main steps for the `fast` preset:
 | no heap allocation in the solve path, const-generic tables | 2.8 |
 | compact nibble tables, pre-weighted indices (big multicore gain) | 3.3 (1 core) / 2.1M solves/s (10 cores) |
 | short-circuit table tests, two extra 2x2x3 tables | 2.4 |
+| compiled steps (one lookup per step, same solutions), no beam bookkeeping for one partial | 0.5 (1 core) / 4.4M solves/s (10 cores) |
 
 The beam presets gained more from algorithmic changes: bound-ordered
 expansion took `neutral` from 17.8 to 3.5 µs and `short` (old settings) from
@@ -180,10 +206,10 @@ the same 1000 random states, one thread, same machine:
 
 | solver | approach | mean length (HTM) | time / solve |
 |---|---|---|---|
-| petrus `fast` | Petrus, optimal steps + ZBLL | 39.0 | 2.5 µs |
-| petrus `neutral` | + best of 48 orientations | 38.1 | 3.4 µs |
-| petrus `short` | + beam search | 30.2 | 173 µs |
-| petrus `shortest` | + wider beam | 28.3 | 766 µs |
+| petrus `fast` | Petrus, optimal steps + ZBLL | 39.0 | 0.5 µs |
+| petrus `neutral` | + best of 48 orientations | 38.1 | 2.3 µs |
+| petrus `short` | + beam search | 30.2 | 163 µs |
+| petrus `shortest` | + wider beam | 28.3 | 722 µs |
 | [min2phase](https://crates.io/crates/min2phase) 0.2.4, target 21 | Kociemba two-phase | 20.6 | 700 µs |
 | min2phase, target 23 / 25 | two-phase, looser target | 21.3 | 520 µs |
 | [HARCS-C](https://github.com/xmdi/HARCS-C) `Petrus.harcs` | method solver (C), first three steps only | 24.1 to F2L | 367 µs |
@@ -191,7 +217,7 @@ the same 1000 random states, one thread, same machine:
 | rcuber Roux | method solver | 47.4 | 25.6 ms |
 
 Against other method-based solvers, the actual peers, petrus is roughly
-150x (HARCS) to 10 000x (rcuber Roux) faster and gives shorter solutions in
+700x (HARCS) to 50 000x (rcuber Roux) faster and gives shorter solutions in
 every mode. HARCS-C is the C rewrite of
 [HARCS](https://www.speedsolving.com/threads/harcs-jarcs-replacement-cube-solver.63241/),
 the best-known general method solver. Its Petrus method file stops after F2L
@@ -204,7 +230,7 @@ moves.
 
 Two-phase is not bound to a human method, so it wins on length: ~21 moves
 in about half a millisecond, a floor that a looser target barely lowers.
-petrus is ~200x faster when ~39 moves will do, and its `shortest` preset
+petrus is ~1000x faster when ~39 moves will do, and its `shortest` preset
 reaches 28 moves in similar time to two-phase's 21. Optimal solvers
 (Korf/Rokicki style, e.g. vcube) are another regime entirely, taking
 seconds per cube with gigabyte tables.
@@ -255,7 +281,7 @@ As a library: `petrus::solver::{Tables, solve, Options}`, with cubes from
 - Half-turn metric only; no slice moves or rotations in output.
 - On x86 the move application is scalar (correct, untuned); an SSSE3
   `pshufb` path would mirror the NEON one.
-- The first solve after start-up page-faults the 18 MB of embedded tables
+- The first solve after start-up page-faults the 22 MB of embedded tables
   (tens of milliseconds); steady-state numbers above exclude it.
 
 ## References

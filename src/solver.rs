@@ -14,6 +14,7 @@
 //! descending an exact distance table. A beam over orientations and over
 //! alternative step solutions trades time for shorter totals.
 
+use crate::compiled::{self, alg_len, alg_move, expand_index, N_COMPILED};
 use crate::cube::*;
 pub use crate::defs::*;
 use crate::facelet::{NSYM, SYM_MOVE};
@@ -82,6 +83,9 @@ pub struct Tables {
     /// Remaining F2L pieces under <R,U>: exact.
     pub tf2l: Table223,
     pub ll: LastLayer,
+    /// Each compiled step's algorithms (little-endian `u64` by case index,
+    /// see [`compiled`]).
+    compiled: [&'static [u8]; N_COMPILED],
 }
 
 macro_rules! embedded {
@@ -103,7 +107,21 @@ impl Tables {
             teo: TEO.with_data(embedded!("teo")),
             tf2l: TF2L.with_data(embedded!("tf2l")),
             ll: LastLayer::load_embedded().expect("embedded last-layer table"),
+            compiled: [embedded!("c222"), embedded!("cexpand"), embedded!("ceo"), embedded!("cf2l")],
         }
+    }
+
+    /// Compiled step `k`'s embedded table (for tests).
+    pub fn compiled_table(&self, k: usize) -> &[u8] {
+        self.compiled[k]
+    }
+
+    /// Compiled step `k`'s algorithm for case `i`, if a case maps there.
+    #[inline(always)]
+    fn compiled_alg(&self, k: usize, i: usize) -> Option<u64> {
+        const WORD: usize = std::mem::size_of::<u64>();
+        let b = self.compiled[k].get(i * WORD..(i + 1) * WORD)?;
+        Some(u64::from_le_bytes(b.try_into().unwrap())).filter(|&a| a != compiled::NONE)
     }
 }
 
@@ -125,6 +143,12 @@ pub trait Step {
     fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
         Self::h(t, c) >= bound
     }
+    /// The first optimal solution the search would return, from the step's
+    /// compiled table, when the step has one and `c` is a case it covers.
+    #[inline(always)]
+    fn compiled(_t: &Tables, _c: &Cube) -> Option<u64> {
+        None
+    }
 }
 
 pub struct Block222;
@@ -142,6 +166,10 @@ impl Step for Block222 {
     #[inline(always)]
     fn h(t: &Tables, c: &Cube) -> u8 {
         t.t222.get(c)
+    }
+    #[inline(always)]
+    fn compiled(t: &Tables, c: &Cube) -> Option<u64> {
+        t.compiled_alg(compiled::C222, t.t222.index(c))
     }
 }
 
@@ -178,6 +206,14 @@ impl Step for Expand223 {
     fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
         exceeds_223(t, c, bound)
     }
+    #[inline(always)]
+    fn compiled(t: &Tables, c: &Cube) -> Option<u64> {
+        // expansion cases are DLF, DF and FL around a solved 2x2x2
+        if !GOAL_222.met(c) {
+            return None;
+        }
+        t.compiled_alg(compiled::CEXPAND, expand_index(c))
+    }
 }
 
 impl Step for Block223 {
@@ -210,6 +246,14 @@ impl Step for EdgeOrient {
     fn exceeds(t: &Tables, c: &Cube, bound: u8) -> bool {
         t.teo.get(c) >= bound || t.t223_d.get(c) >= bound || t.t223_l.get(c) >= bound
     }
+    #[inline(always)]
+    fn compiled(t: &Tables, c: &Cube) -> Option<u64> {
+        // EO cases are the flips of a cube with the 2x2x3 solved
+        if !GOAL_223.met(c) {
+            return None;
+        }
+        t.compiled_alg(compiled::CEO, c.eo12() as usize)
+    }
 }
 
 impl Step for FirstTwoLayers {
@@ -221,6 +265,14 @@ impl Step for FirstTwoLayers {
     #[inline(always)]
     fn h(t: &Tables, c: &Cube) -> u8 {
         t.tf2l.get(c)
+    }
+    #[inline(always)]
+    fn compiled(t: &Tables, c: &Cube) -> Option<u64> {
+        // F2L cases are <R,U> states of a cube with the 2x2x3 and EO solved
+        if !GOAL_EO.met(c) {
+            return None;
+        }
+        t.compiled_alg(compiled::CF2L, t.tf2l.index(c))
     }
 }
 
@@ -277,7 +329,35 @@ impl Dfs<'_> {
 /// optimal ones, then (if `slack` > 0) ones up to `slack` moves longer, and
 /// none longer than `max_len` (the caller's "could still matter" bound; may
 /// leave `out` unchanged). Returns the number of search nodes expanded.
+///
+/// One optimal solution of a compiled step is a table lookup (the same
+/// solution the search finds, see [`compiled`]).
 pub fn solve_step_into<S: Step>(
+    t: &Tables,
+    c: &Cube,
+    want: usize,
+    slack: u8,
+    max_len: u8,
+    out: &mut Vec<StepSeq>,
+) -> u64 {
+    if want == 1 && slack == 0 {
+        if let Some(a) = S::compiled(t, c) {
+            let n = alg_len(a);
+            if n == 0 || n <= max_len.min(MAX_STEP_DEPTH as u8 - 1) as usize {
+                let mut sol = StepSeq::default();
+                for i in 0..n {
+                    sol.push(alg_move(a, S::MOVES, i));
+                }
+                out.push(sol);
+            }
+            return 0;
+        }
+    }
+    search_step_into::<S>(t, c, want, slack, max_len, out)
+}
+
+/// [`solve_step_into`] by search only, compiled table or not.
+pub fn search_step_into<S: Step>(
     t: &Tables,
     c: &Cube,
     want: usize,
@@ -305,6 +385,14 @@ pub fn solve_step_into<S: Step>(
         depth += 1;
     }
     d.nodes
+}
+
+/// [`solve_step`] by search only (for tests and tools).
+pub fn search_step<S: Step>(t: &Tables, c: &Cube, want: usize, slack: u8, nodes: &mut u64) -> Vec<Vec<u8>> {
+    let mut out = Vec::new();
+    *nodes += search_step_into::<S>(t, c, want, slack, u8::MAX, &mut out);
+    assert!(!out.is_empty(), "{} step unsolvable", S::NAME);
+    out.iter().map(|s| s.as_slice().to_vec()).collect()
 }
 
 /// Convenience wrapper returning owned solutions (always at least one).
@@ -507,8 +595,58 @@ fn keep_best(v: &mut Vec<Partial>, width: usize) {
     v.truncate(width);
 }
 
+/// One orientation, one partial: each step's first optimal solution in turn
+/// (a lookup for the compiled steps), without the beam's bookkeeping.
+fn solve_greedy(t: &Tables, cube: &Cube, opts: &Options) -> Solution {
+    struct Run<'a> {
+        t: &'a Tables,
+        state: Cube,
+        merged: FullSeq,
+        steps: Vec<StepMoves>,
+        sols: Vec<StepSeq>,
+        nodes: u64,
+    }
+    impl Run<'_> {
+        fn push(&mut self, name: &'static str, moves: &[u8]) {
+            self.state = self.state.apply_seq(moves);
+            self.merged.extend_merged(moves);
+            self.steps.push(StepMoves { name, moves: moves.to_vec() });
+        }
+
+        fn step<S: Step>(&mut self) {
+            self.sols.clear();
+            self.nodes += solve_step_into::<S>(self.t, &self.state, 1, 0, u8::MAX, &mut self.sols);
+            let sol = self.sols[0];
+            self.push(S::NAME, sol.as_slice());
+        }
+    }
+    let mut r = Run {
+        t,
+        state: *cube,
+        merged: FullSeq::default(),
+        steps: Vec::with_capacity(MAX_STEPS),
+        sols: Vec::new(),
+        nodes: 0,
+    };
+    if opts.joint_blocks {
+        r.step::<Block223>();
+    } else {
+        r.step::<Block222>();
+        r.step::<Expand223>();
+    }
+    r.step::<EdgeOrient>();
+    r.step::<FirstTwoLayers>();
+    let state = r.state;
+    t.ll.each_step(&state, opts.ll, |name, alg| r.push(name, alg));
+    debug_assert!(r.state.is_solved());
+    Solution { sym: 0, steps: r.steps, moves: r.merged.as_slice().to_vec(), nodes: r.nodes }
+}
+
 pub fn solve(t: &Tables, cube: &Cube, opts: &Options) -> Solution {
     let n_orient = opts.orientations.clamp(1, NSYM);
+    if n_orient == 1 && opts.beam <= 1 && opts.alts <= 1 {
+        return solve_greedy(t, cube, opts);
+    }
     let mut b = Beam {
         t,
         opts,

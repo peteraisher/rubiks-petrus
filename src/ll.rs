@@ -204,12 +204,18 @@ impl LastLayer {
     /// Step algorithms finishing a cube whose F2L and EO are solved.
     pub fn solve(&self, c: &Cube, mode: LlMode) -> Vec<(&'static str, &[u8])> {
         let mut out = Vec::new();
+        self.each_step(c, mode, |name, alg| out.push((name, alg)));
+        out
+    }
+
+    /// [`LastLayer::solve`]'s steps passed to `f` in order, without allocating.
+    pub fn each_step<'a>(&'a self, c: &Cube, mode: LlMode, mut f: impl FnMut(&'static str, &'a [u8])) {
         let mut state = *c;
         let mut step = |name: &'static str, pick: &dyn Fn(usize) -> usize, state: &mut Cube| {
             let idx = ll_index(state).expect("last layer reached with F2L/EO unsolved");
             let alg = self.algs[pick(idx)].as_deref().expect("missing last-layer case");
             *state = state.apply_seq(alg);
-            out.push((name, alg));
+            f(name, alg);
         };
         let cp = |i| self.best_cp[corner_perm_key(i)];
         let corners = |i| self.best_corners[corners_key(i)];
@@ -226,7 +232,6 @@ impl LastLayer {
             }
             LlMode::Zbll => step("ZBLL", &full, &mut state),
         }
-        out
     }
 }
 

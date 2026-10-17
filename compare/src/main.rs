@@ -52,6 +52,7 @@ fn main() {
     // solve untimed too)
     for c in &cubes {
         std::hint::black_box(solve(&t, c, &Options::SHORT));
+        std::hint::black_box(solve(&t, c, &Options::FAST));
     }
     for (name, opts) in [
         ("petrus classic (Lars' 7 steps)", Options::CLASSIC),
